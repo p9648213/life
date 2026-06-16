@@ -1,11 +1,11 @@
-pub struct Response {
+pub struct Response<'a> {
     status_code: u16,
-    headers: Vec<(String, String)>,
+    headers: Vec<(&'a str, &'a str)>,
     body_bytes: Vec<u8>,
 }
 
-impl Response {
-    fn new(status_code: u16, headers: Vec<(String, String)>, body_bytes: Vec<u8>) -> Self {
+impl<'a> Response<'a> {
+    fn new(status_code: u16, headers: Vec<(&'a str, &'a str)>, body_bytes: Vec<u8>) -> Self {
         Self {
             status_code,
             headers,
@@ -48,12 +48,13 @@ impl Response {
         response
     }
 
+
     pub fn html(status_code: u16, text: &str) -> Self {
         Self::new(
             status_code,
             vec![(
-                "Content-Type".to_string(),
-                "text/html; charset=utf-8".to_string(),
+                "Content-Type",
+                "text/html; charset=utf-8",
             )],
             text.as_bytes().to_vec(),
         )
@@ -101,8 +102,8 @@ Connection: close\r\n\
         let bytes = Response::new(
             200,
             vec![
-                ("Content-Length".to_string(), "999".to_string()),
-                ("X-Test".to_string(), "yes".to_string()),
+                ("Content-Length", "999"),
+                ("X-Test", "yes"),
             ],
             b"abc".to_vec(),
         )

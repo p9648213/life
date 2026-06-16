@@ -3,12 +3,13 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::response::Response;
+use crate::{request::Request, response::Response};
 
+mod request;
 mod response;
 
 fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
-    let mut buffer = [0u8; 128];
+    let mut buffer = [0u8; 256];
     let bytes_read = stream.read(&mut buffer)?;
 
     if bytes_read == 0 {
@@ -17,7 +18,13 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
 
     let data = &buffer[..bytes_read];
 
-    println!("Request: {}", String::from_utf8_lossy(data));
+    let request = Request::parse(data);
+
+    let raw_request = String::from_utf8_lossy(data);
+
+    println!("Request raw:");
+    println!("{}", raw_request.escape_debug());
+    println!("{:#?}", request);
 
     let response = Response::html(200, "<h1>Hello World</h1>");
 
