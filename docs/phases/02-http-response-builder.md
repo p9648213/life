@@ -124,8 +124,11 @@ Use byte length for HTTP body length.
 ## Questions to Answer
 
 - Why should response serialization be centralized?
+    + Response serialization should be centralized because HTTP responses have repeated wire-format rules: the status line, `\r\n` line endings, headers, the blank line before the body, and the body byte length. If each handler builds these by hand, it is easy for responses to become inconsistent or invalid.
 - What is the difference between status code and reason phrase?
+    + The status code is the machine-readable number that tells the client what happened, such as `200` or `404`. The reason phrase is the human-readable text for that status, such as `OK` or `Not Found`.
 - Why should body length be calculated after encoding?
+    + Body length should be calculated after encoding because HTTP `Content-Length` counts bytes, not characters. Text like UTF-8 may use more than one byte per character, and future responses may contain binary data.
 
 ## Checkpoint
 
