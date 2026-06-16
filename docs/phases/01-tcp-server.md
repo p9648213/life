@@ -190,11 +190,17 @@ Possible cause:
 ## Questions to Answer
 
 - What is the difference between `TcpListener` and `TcpStream`?
+    Answer:
+        + `TcpListener` listens for incoming TCP connections on an address and port.
+        + `TcpStream` represents one connected client. It is the byte stream that lets the server read request bytes and write response bytes.
 - Why does `bind` return a `Result`?
+        + Because binding can fail. For example, the port might already be in use, the address might not be available, or the operating system might deny permission.
 - Why do you read into a byte buffer instead of directly into a `String`?
+        + Because TCP gives the program raw bytes, not guaranteed valid text. After reading bytes into a buffer, the program can decide how to interpret only the bytes that were actually received.
 - What exactly does `Content-Length` count?
+        + It counts the number of bytes in the HTTP response body, not the number of characters.
 - What changes when you use `127.0.0.1:8081` instead?
-
+        + The server listens on port `8081` instead of port `8080`. Clients must also connect to `http://127.0.0.1:8081/`. The host is still `127.0.0.1`, so it is still local-only.
 ## Checkpoint
 
 You are done when:
@@ -204,4 +210,3 @@ You are done when:
 - Your program prints the raw request.
 - Your program sends a valid response.
 - You can explain each line of the response.
-

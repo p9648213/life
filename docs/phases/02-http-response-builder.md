@@ -47,9 +47,13 @@ Content-Length: 14\r\n
 Answer these first:
 
 - Should the body be stored as `String` or `Vec<u8>`?
+    + I think the body should be stored as `Vec<u8>`, because HTTP response bodies are bytes and may contain text, HTML, images, or other binary data.
 - Should headers be a `Vec<(String, String)>` or a map?
+    + I think headers should be a `Vec<(String, String)>` for now. It is simple to serialize and lets me see how headers are written on the wire. A map may be useful later for lookup or replacement.
 - Should `Content-Length` be inserted automatically?
+    + Yes. `Content-Length` should be inserted automatically during serialization, using the final body length in bytes.
 - What default content type should HTML use?
+    + I think HTML responses should default to `text/html; charset=utf-8`.
 
 For learning, a `Vec` of header pairs is easier to understand than a map.
 
@@ -130,4 +134,3 @@ You are done when:
 - Your server returns responses through your response type.
 - `curl -i` shows valid headers.
 - You can return at least `200` and `404`.
-
