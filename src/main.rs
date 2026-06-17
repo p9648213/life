@@ -17,14 +17,8 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     }
 
     let data = &buffer[..bytes_read];
-
     let request = Request::parse(data);
-
-    let raw_request = String::from_utf8_lossy(data);
-
-    println!("Request raw:");
-    println!("{}", raw_request.escape_debug());
-    println!("{:#?}", request);
+    println!("Request: {:#?}", request);
 
     let response = Response::html(200, "<h1>Hello World</h1>");
 

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug)]
 enum HttpMethod {
     Get,
@@ -9,22 +11,18 @@ enum HttpMethod {
 }
 
 #[derive(Debug)]
-struct Header<'a> {
-    name: &'a str,
-    value: &'a str
-}
-
-#[derive(Debug)]
 pub struct Request<'a> {
     method: HttpMethod,
     target_path: &'a str,
     version: &'a str,
+    headers: HashMap<&'a str, &'a str>,
+    body: &'a [u8],
 }
 
 //GET / HTTP/1.1\r\nHost: 127.0.0.1:8080\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n
 
 impl<'a> Request<'a> {
-    pub fn parse(data_buffer: &[u8]) -> Self {
+    pub fn parse(data_buffer: &'a [u8]) -> Self {
         println!("Buffer: {:?}", data_buffer);
 
         let mut first_line: &[u8] = &[];
@@ -52,14 +50,26 @@ impl<'a> Request<'a> {
             index += 1;
         }
 
-        println!("First line: {:?}", first_line);
-        println!("Header: {:?}", headers);
-        println!("Body: {:?}", body);
+        let first_line = str::from_utf8(first_line).unwrap();
+        let mut first_line_iter = first_line.split_whitespace();
+
+        let headers = str::from_utf8(headers).unwrap();
+        let headers_iters = headers.split("\r\n");
+        let mut headers_map = HashMap::new();
+
+        for header in headers_iters {
+            let mut header_iters = header.split(":");
+            let name = header_iters.next().unwrap().trim();
+            let value = header_iters.next().unwrap().trim();
+            headers_map.insert(name, value);
+        }
 
         Self {
-            method: HttpMethod::Get,
-            target_path: "/",
-            version: "1.1",
+            method: Self::to_method(first_line_iter.next().unwrap()),
+            target_path: first_line_iter.next().unwrap(),
+            version: first_line_iter.next().unwrap(),
+            headers: headers_map,
+            body,
         }
     }
 
