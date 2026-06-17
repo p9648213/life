@@ -9,6 +9,12 @@ enum HttpMethod {
 }
 
 #[derive(Debug)]
+struct Header<'a> {
+    name: &'a str,
+    value: &'a str
+}
+
+#[derive(Debug)]
 pub struct Request<'a> {
     method: HttpMethod,
     target_path: &'a str,
@@ -22,27 +28,33 @@ impl<'a> Request<'a> {
         println!("Buffer: {:?}", data_buffer);
 
         let mut first_line: &[u8] = &[];
-        let mut carriage_return = false;
+        let mut headers: &[u8] = &[];
+        let mut body: &[u8] = &[];
 
-        for (index, byte) in data_buffer.iter().enumerate() {
-            if *byte == 13 {
-                carriage_return = true;
-                continue;
+        let mut index = 0;
+
+        while index < data_buffer.len() {
+            if data_buffer[index] == 13 && data_buffer[index + 1] == 10 && first_line.is_empty() {
+                first_line = &data_buffer[..index];
+                index += 2;
             }
 
-            if *byte == 10 && carriage_return {
-                if first_line.is_empty() {
-                    first_line = &data_buffer[..index - 1];
-                    println!("First line byte: {:?}", first_line)
-                }
-                carriage_return = false;
-                continue;
+            if data_buffer[index] == 13
+                && data_buffer[index + 2] == 13
+                && data_buffer[index + 1] == 10
+                && data_buffer[index + 3] == 10
+            {
+                headers = &data_buffer[first_line.len() + 2..index];
+                body = &data_buffer[index + 4..data_buffer.len()];
+                break;
             }
 
-            if carriage_return {
-                carriage_return = false
-            }
+            index += 1;
         }
+
+        println!("First line: {:?}", first_line);
+        println!("Header: {:?}", headers);
+        println!("Body: {:?}", body);
 
         Self {
             method: HttpMethod::Get,
