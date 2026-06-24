@@ -29,6 +29,9 @@ Support now:
 - HTTP/1.1
 - `GET`
 - `POST`
+- `PUT`
+- `PATCH`
+- `DELETE`
 - Headers separated by `\r\n`
 - Body length from `Content-Length`
 
@@ -141,9 +144,13 @@ Possible cause:
 ## Questions to Answer
 
 - What is the exact first line of a request called?
+    + It is called the request line, or start-line. It contains the method, request target, and HTTP version.
 - What separates headers from the body?
+    + A blank line, represented by `\r\n\r\n`.
 - Why should malformed input return `400 Bad Request`?
+    + The server cannot safely interpret or process malformed request syntax. A `400 Bad Request` response tells the client that its request was invalid.
 - Why is one `read` call not enough in a real server?
+    + TCP is a byte stream, so one request can arrive in multiple pieces. A single `read` call is not guaranteed to receive the complete request.
 
 ## Checkpoint
 
@@ -153,4 +160,3 @@ You are done when:
 - `POST /notes` parses headers and body.
 - Bad request text returns a parse error.
 - You have documented parser limitations.
-
