@@ -1,8 +1,8 @@
-# Phase 20: Optional Frontend Interactivity
+# Phase 20: Frontend Interactivity Adapter
 
 Goal: add a small amount of browser-side behavior without replacing the app.
 
-The server-rendered app should continue to work without JavaScript.
+The server-rendered or API-backed app should continue to work without requiring a frontend framework in the backend core.
 
 ## What to Learn
 
@@ -21,7 +21,7 @@ The server-rendered app should continue to work without JavaScript.
 ## Step-by-Step Work
 
 1. Serve a JavaScript file from `/static/app.js`.
-2. Add a tiny enhancement to the note form.
+2. Add a tiny enhancement to one sample form.
 3. Submit with `fetch`.
 4. Show success or validation errors.
 5. Keep normal form submission working if JavaScript fails.
@@ -43,4 +43,3 @@ You are done when:
 
 - One workflow is enhanced with JavaScript.
 - The app still works without JavaScript.
-

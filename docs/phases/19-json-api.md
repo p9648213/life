@@ -1,8 +1,8 @@
-# Phase 19: Optional JSON API
+# Phase 19: JSON API
 
-Goal: compare server-rendered HTML with machine-readable API responses.
+Goal: support machine-readable API responses as a first-class backend adapter.
 
-Do this after the HTML app works.
+Do this after routing, body parsing, validation, and error mapping are understandable.
 
 ## What to Learn
 
@@ -20,10 +20,10 @@ Do this after the HTML app works.
 
 ## Step-by-Step Work
 
-1. Add `GET /api/notes`.
-2. Return notes as JSON.
+1. Add `GET /api/resources`.
+2. Return sample records as JSON.
 3. Set `Content-Type: application/json`.
-4. Add `POST /api/notes`.
+4. Add `POST /api/resources`.
 5. Validate request body.
 6. Return useful status codes.
 7. Keep HTML routes working.
@@ -45,4 +45,3 @@ You are done when:
 - HTML pages still work.
 - API routes return JSON.
 - Invalid API input returns a clear error.
-

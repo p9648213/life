@@ -1,8 +1,8 @@
 # Phase 07: In-Memory State
 
-Goal: store notes while the process is running.
+Goal: define an application state boundary and store sample data while the process is running.
 
-This phase introduces application state. Do it single-threaded first.
+This phase introduces application state. Do it single-threaded first. The sample data is only a stand-in for your future app domain.
 
 ## What to Learn
 
@@ -23,50 +23,50 @@ This phase introduces application state. Do it single-threaded first.
 Think in terms of:
 
 ```text
-Note:
+Record:
   id
-  title
-  body
+  fields needed by your temporary exercise
 
 AppState:
-  notes
-  next_note_id
+  records
+  next_record_id
 ```
 
-Do not worry about users yet.
+Do not worry about users yet. Do not bake the temporary sample type into the backend core.
 
 ## Step-by-Step Work
 
-1. Define the note data you need.
-2. Define a state object that owns all notes.
+1. Define the temporary record data you need.
+2. Define a state object that owns those records.
 3. Create the state in `main`.
 4. Pass mutable access to the router or handlers.
-5. On `POST /notes`, add a note.
-6. On `GET /notes`, render all notes.
-7. On `GET /notes/:id`, render one note.
+5. On a sample `POST` route, add a record.
+6. On a sample `GET` route, render all records.
+7. On a sample dynamic route, render one record.
 
 ## Dynamic Path Hint
 
-For `/notes/123`, you can:
+For `/resources/123`, you can:
 
-1. Check whether the path starts with `/notes/`.
+1. Check whether the path starts with `/resources/`.
 2. Take the remaining text after that prefix.
 3. Parse it as a number.
-4. Look up the note by ID.
+4. Look up the record by ID.
 
 ## Questions to Answer
 
 - Who owns `AppState`?
-- Why does creating a note require mutable access?
+- Why does creating a record require mutable access?
 - What happens to state when the process stops?
 - Should IDs be reused after deletion?
+- What belongs in backend core, and what belongs in app state?
 
 ## Checkpoint
 
 You are done when:
 
-- You can create a note.
-- You can list notes.
-- You can view one note by ID.
-- Restarting the server loses notes, and you understand why.
-
+- You can create a sample record.
+- You can list sample records.
+- You can view one sample record by ID.
+- Restarting the server loses records, and you understand why.
+- The backend core does not depend on a specific product domain.

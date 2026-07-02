@@ -50,7 +50,7 @@ Writing down what you do not support is part of the learning.
 A simple request looks like:
 
 ```text
-GET /notes HTTP/1.1\r\n
+GET /resources HTTP/1.1\r\n
 Host: 127.0.0.1:8080\r\n
 User-Agent: curl/...\r\n
 \r\n
@@ -59,12 +59,12 @@ User-Agent: curl/...\r\n
 A form POST looks like:
 
 ```text
-POST /notes HTTP/1.1\r\n
+POST /demo/form HTTP/1.1\r\n
 Host: 127.0.0.1:8080\r\n
-Content-Length: 22\r\n
+Content-Length: 29\r\n
 Content-Type: application/x-www-form-urlencoded\r\n
 \r\n
-title=Hello&body=World
+name=Rust&message=Hello+World
 ```
 
 ## Step-by-Step Work
@@ -113,8 +113,8 @@ Use these:
 
 ```bash
 curl -v http://127.0.0.1:8080/
-curl -v http://127.0.0.1:8080/notes
-curl -v -X POST http://127.0.0.1:8080/notes -d "title=Hello&body=World"
+curl -v http://127.0.0.1:8080/resources
+curl -v -X POST http://127.0.0.1:8080/demo/form -d "name=Rust&message=Hello"
 ```
 
 Print your parsed request in debug form.
@@ -157,6 +157,6 @@ Possible cause:
 You are done when:
 
 - `GET /` parses into method and path.
-- `POST /notes` parses headers and body.
+- `POST /demo/form` parses headers and body.
 - Bad request text returns a parse error.
 - You have documented parser limitations.

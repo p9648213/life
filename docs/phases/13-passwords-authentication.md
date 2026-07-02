@@ -28,7 +28,7 @@ This is the main exception to the from-scratch rule. Do not write your own passw
 6. Add a login form.
 7. Verify submitted password against stored hash.
 8. On success, create a session.
-9. Protect note creation behind login.
+9. Protect one sample write route behind login.
 
 ## Do Not Do This
 
@@ -43,6 +43,7 @@ This is the main exception to the from-scratch rule. Do not write your own passw
 - What is a salt?
 - What is the difference between authentication and authorization?
 - Which routes require login?
+- Which authorization decisions belong in app code rather than backend core?
 
 ## Checkpoint
 
@@ -50,6 +51,5 @@ You are done when:
 
 - Users can register.
 - Users can log in.
-- Notes can require authentication.
+- Protected write routes require authentication.
 - Raw passwords are never stored.
-

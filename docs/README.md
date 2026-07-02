@@ -1,23 +1,42 @@
-# Fullstack From Scratch in Rust
+# Custom Backend From Scratch in Rust
 
-This documentation is a learning path for building a small fullstack web app from low-level pieces. It intentionally avoids full code solutions. Each phase tells you what to learn, where to look, what to try, and how to check your understanding.
+This documentation is a learning and engineering path for building a custom Rust web backend from low-level pieces. It intentionally avoids full code solutions. Each phase tells you what to learn, where to look, what to try, and how to check your understanding.
 
-Recommended app: a small notes app.
+The old roadmap used a small app as the center of the work. The new direction is different: build a backend core that can support whatever fullstack application you decide to build separately. Temporary sample routes are allowed only to exercise the backend.
 
-Final target:
+Current status:
+
+- Phases 00 through 03 are complete.
+- The next implementation phase is Phase 04: routing.
+- The current code has a TCP accept loop, a response builder, a request parser, and focused parser/response tests.
+- The next design move is to split routing and handler behavior away from TCP I/O.
+
+Main target:
 
 - HTTP/1.1 server using `std::net`
 - Manual request parsing
 - Manual response generation
-- Basic router
-- Server-rendered HTML
-- Browser forms
-- In-memory state
-- File-backed storage
+- Router and handler boundary
+- Application state boundary
+- HTML, form, and JSON adapters when needed
 - Cookies and sessions
-- Basic authentication
-- Small concurrency model
+- File-backed storage and database-backed storage
+- Explicit error mapping
+- Request limits and protocol hardening
+- Configuration, diagnostics, and observability
+- Concurrency model you understand
+- Authentication using proven password hashing
 - Tests for the parts you build yourself
+- Benchmarking and profiling before performance rewrites
+
+Non-goals:
+
+- Do not clone every feature of Axum, Actix, Hyper, or a browser-facing reverse proxy.
+- Do not write homemade cryptography, password hashing, or TLS.
+- Do not optimize by guessing. First make behavior correct and measurable.
+- Do not treat a local learning server as internet-safe until the security and deployment boundary phase says what is still missing.
+
+For the deeper plan and current implementation feedback, read [backend-engine-plan.md](backend-engine-plan.md).
 
 ## How to Use These Docs
 
@@ -25,7 +44,7 @@ For each phase:
 
 1. Read the phase file.
 2. Open the linked Rust documentation.
-3. Write a tiny experiment before integrating it into the app.
+3. Write a tiny experiment before integrating it into the backend core.
 4. Implement the smallest useful version.
 5. Test manually with `curl` or the browser.
 6. Write down what you learned before moving on.
@@ -67,9 +86,21 @@ Useful official references:
 16. [Concurrency](phases/15-concurrency.md)
 17. [Better HTTP Behavior](phases/16-better-http-behavior.md)
 18. [Testing](phases/17-testing.md)
-19. [Optional Database Layer](phases/18-database-layer.md)
-20. [Optional JSON API](phases/19-json-api.md)
-21. [Optional Frontend Interactivity](phases/20-frontend-interactivity.md)
+19. [Database Layer](phases/18-database-layer.md)
+20. [JSON API](phases/19-json-api.md)
+21. [Frontend Interactivity Adapter](phases/20-frontend-interactivity.md)
+22. [Configuration and Runtime Limits](phases/21-configuration-runtime-limits.md)
+23. [Observability and Diagnostics](phases/22-observability-diagnostics.md)
+24. [Benchmarking and Profiling](phases/23-benchmarking-profiling.md)
+25. [Backend Core API Boundary](phases/24-backend-core-api-boundary.md)
+26. [Security and Deployment Boundary](phases/25-security-deployment-boundary.md)
+
+## Feedback Index
+
+- [Current Backend Feedback](feedback/current-backend-feedback.md)
+- [Phase 01 Feedback](feedback/phase-01-feedback.md)
+- [Phase 02 Feedback](feedback/phase-02-feedback.md)
+- [Phase 03 Feedback](feedback/phase-03-feedback.md)
 
 ## Manual Test Commands
 
@@ -77,9 +108,11 @@ You will use these often:
 
 ```bash
 cargo run
+cargo fmt --check
 cargo test
 curl -v http://127.0.0.1:8080/
 curl -i http://127.0.0.1:8080/
-curl -i -X POST http://127.0.0.1:8080/notes -d "title=Hello&body=World"
+curl -i http://127.0.0.1:8080/health
+curl -i http://127.0.0.1:8080/not-real
+curl -i -X POST http://127.0.0.1:8080/demo/form -d "name=Rust&message=Hello"
 ```
-

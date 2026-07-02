@@ -1,6 +1,6 @@
 # Phase 00: Project Setup
 
-Goal: create a simple Rust workflow and understand the project you are starting from.
+Goal: create a Rust workflow and understand the backend core you are starting from.
 
 You are not building the server yet. You are preparing the repo so each later phase is easier to test and reason about.
 
@@ -11,6 +11,7 @@ You are not building the server yet. You are preparing the repo so each later ph
 - How `cargo run`, `cargo check`, and `cargo test` differ
 - How Rust modules are usually organized
 - How to keep notes about design decisions
+- How to separate backend-core decisions from application-domain decisions
 
 ## Where to Look
 
@@ -52,10 +53,13 @@ src/
     mod.rs
     request.rs
     response.rs
+  connection.rs
   router.rs
   handlers.rs
+  state.rs
   html.rs
   storage.rs
+  diagnostics.rs
 ```
 
 Only split files when `main.rs` becomes hard to read.
@@ -64,7 +68,7 @@ Only split files when `main.rs` becomes hard to read.
 
 1. Run the default program.
 2. Add a short `README.md` in your own words.
-3. Decide the app domain. Recommended: notes.
+3. Write down the backend core boundary in your own words.
 4. Create a small `docs/journal.md` if you want to record learning notes.
 5. Write the first manual checklist:
 
@@ -72,6 +76,7 @@ Only split files when `main.rs` becomes hard to read.
 - Can I run the program?
 - Can I explain what main() does?
 - Do I know the next phase?
+- Can I explain what belongs in backend core versus app code?
 ```
 
 ## Checkpoint
@@ -81,4 +86,3 @@ You are done when:
 - `cargo run` works.
 - You can explain `Cargo.toml`.
 - You know which feature you are building first.
-

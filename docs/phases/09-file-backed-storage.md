@@ -1,6 +1,6 @@
 # Phase 09: File-Backed Storage
 
-Goal: persist notes across server restarts.
+Goal: persist app state across server restarts.
 
 Before using a database, feel the problems that databases solve.
 
@@ -31,11 +31,11 @@ This teaches serialization. Later, using JSON is fine.
 
 ## Step-by-Step Work
 
-1. Decide a data file path, for example `data/notes.txt`.
+1. Decide a data file path, for example `data/records.txt`.
 2. On startup, try to read the file.
-3. If the file does not exist, start with empty notes.
-4. Parse each line into a note.
-5. After creating, updating, or deleting notes, write all notes back.
+3. If the file does not exist, start with empty records.
+4. Parse each line into a record.
+5. After creating, updating, or deleting records, write all records back.
 6. Write to a temporary file first.
 7. Rename the temporary file over the real file.
 8. Handle malformed lines explicitly.
@@ -45,9 +45,9 @@ This teaches serialization. Later, using JSON is fine.
 If your process crashes halfway through writing, the real file may be corrupted. A common pattern is:
 
 ```text
-write new content to notes.txt.tmp
+write new content to records.txt.tmp
 flush/close it
-rename notes.txt.tmp to notes.txt
+rename records.txt.tmp to records.txt
 ```
 
 Rename is usually atomic on the same filesystem.
@@ -63,7 +63,6 @@ Rename is usually atomic on the same filesystem.
 
 You are done when:
 
-- Notes survive restart.
+- Records survive restart.
 - Missing data file is handled.
 - Malformed data does not silently create nonsense state.
-

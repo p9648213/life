@@ -24,16 +24,16 @@ HTML forms usually send data as `application/x-www-form-urlencoded`. You will pa
 Your page should contain a form conceptually like:
 
 ```html
-<form method="post" action="/notes">
-  <input name="title">
-  <textarea name="body"></textarea>
-  <button type="submit">Create</button>
+<form method="post" action="/demo/form">
+  <input name="name">
+  <textarea name="message"></textarea>
+  <button type="submit">Send</button>
 </form>
 ```
 
 ## Step-by-Step Work
 
-1. Add a `GET /notes/new` page with a form.
+1. Add a `GET /demo/form` page with a form.
 2. Submit the form and print the raw request body.
 3. Confirm the content type.
 4. Split body pairs on `&`.
@@ -78,9 +78,9 @@ Decision for now:
 ## Experiments
 
 ```bash
-curl -i -X POST http://127.0.0.1:8080/notes \
+curl -i -X POST http://127.0.0.1:8080/demo/form \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "title=Hello+Rust&body=Learning%20HTTP"
+  -d "name=Rust&message=Learning%20HTTP"
 ```
 
 ## Questions to Answer
@@ -94,6 +94,5 @@ curl -i -X POST http://127.0.0.1:8080/notes \
 You are done when:
 
 - The browser can submit a form.
-- Your server extracts `title` and `body`.
+- Your server extracts fields from the form body.
 - Invalid forms produce a useful error.
-

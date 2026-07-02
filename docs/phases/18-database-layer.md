@@ -1,8 +1,8 @@
-# Phase 18: Optional Database Layer
+# Phase 18: Database Layer
 
 Goal: understand what a database gives you after building file storage.
 
-Do this only after file-backed storage works.
+Do this after file-backed storage works, unless your chosen app domain clearly needs database behavior earlier.
 
 ## What to Learn
 
@@ -23,7 +23,7 @@ Do this only after file-backed storage works.
 ## Step-by-Step Work
 
 1. Choose SQLite first.
-2. Design a `notes` table.
+2. Design one table for your sample app record.
 3. Write schema manually.
 4. Add a small migration step.
 5. Replace file load/save with SQL queries.
@@ -45,7 +45,6 @@ It is reasonable to use a database crate here. The learning target is SQL and da
 
 You are done when:
 
-- Notes persist in SQLite.
+- Records persist in SQLite.
 - You can explain the schema.
 - You understand why transactions matter.
-

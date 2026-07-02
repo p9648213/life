@@ -20,15 +20,15 @@ After a successful `POST`, a web app usually redirects to a `GET` page. This is 
 
 1. Create a response helper for redirects.
 2. Set status to `303 See Other`.
-3. Add `Location: /notes` or `Location: /notes/{id}`.
+3. Add `Location: /resources` or `Location: /resources/{id}` for the sample route.
 4. Use an empty body or a tiny fallback body.
-5. After creating a note, return this redirect response.
+5. After creating a sample record, return this redirect response.
 
 ## Experiments
 
 ```bash
-curl -i -X POST http://127.0.0.1:8080/notes -d "title=A&body=B"
-curl -L -i -X POST http://127.0.0.1:8080/notes -d "title=A&body=B"
+curl -i -X POST http://127.0.0.1:8080/demo/form -d "name=A&message=B"
+curl -L -i -X POST http://127.0.0.1:8080/demo/form -d "name=A&message=B"
 ```
 
 Then try in the browser and refresh after submission.
@@ -43,6 +43,5 @@ Then try in the browser and refresh after submission.
 
 You are done when:
 
-- Creating a note redirects.
+- Creating a sample record redirects.
 - Refreshing the result page does not resubmit the form.
-

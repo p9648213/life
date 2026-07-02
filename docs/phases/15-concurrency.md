@@ -51,6 +51,5 @@ Mutex
 You are done when:
 
 - Multiple clients can connect.
-- Shared note state remains consistent.
+- Shared app state remains consistent.
 - You understand where locking happens.
-

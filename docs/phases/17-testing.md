@@ -46,7 +46,7 @@ rejects_missing_http_version
 escapes_script_tag_as_text
 decodes_plus_as_space
 serializes_content_length_as_body_bytes
-storage_round_trips_note
+storage_round_trips_record
 ```
 
 ## Questions to Answer
@@ -62,4 +62,3 @@ You are done when:
 - `cargo test` runs.
 - Core parsers have valid and invalid tests.
 - HTML escaping has tests.
-
