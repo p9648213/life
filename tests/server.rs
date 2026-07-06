@@ -4,16 +4,18 @@ use std::{
     thread,
 };
 
-use life::handle_client;
+use life::server::Server;
 
 #[test]
 fn handle_client_writes_http_response_over_tcp() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
+    let mut app = Server::new();
+    app.routes.get("/");
 
     let server = thread::spawn(move || {
         let (stream, _) = listener.accept().unwrap();
-        handle_client(stream).unwrap();
+        app.handle_client(stream).unwrap();
     });
 
     let mut client = TcpStream::connect(address).unwrap();
@@ -27,17 +29,18 @@ fn handle_client_writes_http_response_over_tcp() {
 
     assert!(response.starts_with("HTTP/1.1 200 OK\r\n"));
     assert!(response.contains("Content-Type: text/html; charset=utf-8\r\n"));
-    assert!(response.ends_with("<h1>Hello World</h1>"));
+    assert!(response.ends_with("<h1>HELLO WORLD</h1>"));
 }
 
 #[test]
 fn handle_client_returns_400_for_malformed_request() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
+    let app = Server::new();
 
     let server = thread::spawn(move || {
         let (stream, _) = listener.accept().unwrap();
-        handle_client(stream).unwrap();
+        app.handle_client(stream).unwrap();
     });
 
     let mut client = TcpStream::connect(address).unwrap();

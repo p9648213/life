@@ -1,4 +1,8 @@
-use std::{fmt, num::ParseIntError, str::Utf8Error};
+use std::{
+    fmt::{self},
+    num::ParseIntError,
+    str::Utf8Error,
+};
 
 #[derive(Debug)]
 pub enum AppError {
@@ -9,6 +13,7 @@ pub enum AppError {
     RequestHeaderInvalid,
     RequestLineInvalid,
     RequestHttpVersionInvalid,
+    RequestRouteInvalid,
 }
 
 impl From<Utf8Error> for AppError {
@@ -48,6 +53,9 @@ impl fmt::Display for AppError {
             }
             AppError::RequestHttpVersionInvalid => {
                 write!(f, "Invalid Http Version")
+            }
+            AppError::RequestRouteInvalid => {
+                write!(f, "Invalid Route Url")
             }
         }
     }

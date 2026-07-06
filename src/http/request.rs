@@ -6,9 +6,6 @@ use crate::http::error::AppError;
 pub enum HttpMethod {
     Get,
     Post,
-    Put,
-    Patch,
-    Delete,
 }
 
 #[derive(Debug)]
@@ -24,14 +21,43 @@ struct RequestLine<'a> {
 #[derive(Debug)]
 pub struct Request<'a> {
     request_line: RequestLine<'a>,
-    content_length: Option<ContentLength>,
     headers: HashMap<String, &'a str>,
     body: &'a [u8],
+    query: HashMap<&'a str, &'a str>,
+    path: &'a str
 }
 
 //GET / HTTP/1.1\r\nHost: 127.0.0.1:8080\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n
 
 impl<'a> Request<'a> {
+    pub fn method(&self) -> &HttpMethod {
+        &self.request_line.method
+    }
+
+    pub fn target_path(&self) -> &str {
+        self.request_line.target_path
+    }
+
+    pub fn version(&self) -> &str {
+        self.request_line.version
+    }
+
+    pub fn body(&self) -> &[u8] {
+        self.body
+    }
+
+    pub fn query(&self) -> &HashMap<&str, &str> {
+        &self.query
+    }
+
+    pub fn path(&self) -> &str {
+        self.path
+    }
+
+    pub fn get_header(&self, name: &str) -> Option<&str> {
+        self.headers.get(&name.to_ascii_uppercase()).copied()
+    }
+
     pub fn parse(data_buffer: &'a [u8]) -> Result<Request<'a>, AppError> {
         let mut request_line: &[u8] = &[];
         let mut headers: &[u8] = &[];
@@ -66,6 +92,8 @@ impl<'a> Request<'a> {
             return Err(AppError::RequestHttpVersionInvalid);
         }
 
+        let parse_query = Self::parse_query(request_line.target_path)?;
+
         let body = match content_length {
             Some(ref content_length) => {
                 if content_length.0 == data_buffer.len() - body_start_index {
@@ -85,8 +113,9 @@ impl<'a> Request<'a> {
         Ok(Self {
             request_line,
             headers: headers_map,
-            content_length,
             body,
+            query: parse_query.1,
+            path: parse_query.0
         })
     }
 
@@ -94,9 +123,6 @@ impl<'a> Request<'a> {
         match method {
             "GET" => Ok(HttpMethod::Get),
             "POST" => Ok(HttpMethod::Post),
-            "PUT" => Ok(HttpMethod::Put),
-            "PATCH" => Ok(HttpMethod::Patch),
-            "DELETE" => Ok(HttpMethod::Delete),
             _ => Err(AppError::MethodParseError),
         }
     }
@@ -150,23 +176,31 @@ impl<'a> Request<'a> {
         Ok((content_length, headers_map))
     }
 
-    pub fn method(&self) -> &HttpMethod {
-        &self.request_line.method
-    }
+    fn parse_query(target_path: &str) -> Result<(&str ,HashMap<&str, &str>), AppError> {
+        let mut query = HashMap::new();
+        let mut path = target_path;
 
-    pub fn target_path(&self) -> &str {
-        self.request_line.target_path
-    }
+        let split_query = target_path.rsplit_once("?");
 
-    pub fn version(&self) -> &str {
-        self.request_line.version
-    }
+        if split_query.iter().count() > 1 {
+            return Err(AppError::RequestRouteInvalid)
+        }
 
-    pub fn body(&self) -> &[u8] {
-        self.body
-    }
+        if let Some(q) = split_query {
+            path = q.0;
+            let query_params = q.1.split("&");
+            for param in query_params {
+                let kv = param.split_once("=");
+                if let Some((key, value)) = kv {
+                    query.insert(key, value);
+                } else {
+                    return Err(AppError::RequestRouteInvalid);
+                }
+            }
+        } else {
+            return Ok((path, query))
+        }
 
-    pub fn get_header(&self, name: &str) -> Option<&str> {
-        self.headers.get(&name.to_ascii_uppercase()).copied()
+        Ok((path, query))
     }
 }

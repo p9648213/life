@@ -42,16 +42,18 @@ Do not worry about users yet. Do not bake the temporary sample type into the bac
 4. Pass mutable access to the router or handlers.
 5. On a sample `POST` route, add a record.
 6. On a sample `GET` route, render all records.
-7. On a sample dynamic route, render one record.
+7. On a sample query-bearing route, render one record.
 
-## Dynamic Path Hint
+## Static Route and Query Identifier
 
-For `/resources/123`, you can:
+Phase 04 deliberately uses exact static paths rather than dynamic path segments. For `/resources?id=123`, you can:
 
-1. Check whether the path starts with `/resources/`.
-2. Take the remaining text after that prefix.
-3. Parse it as a number.
+1. Match the exact `GET /resources` route.
+2. Read `id` from the parsed query parameters.
+3. Validate and parse it as a number.
 4. Look up the record by ID.
+
+Return a client error when `id` is missing, repeated when repetition is unsupported, incorrectly encoded, or not a valid identifier.
 
 ## Questions to Answer
 
