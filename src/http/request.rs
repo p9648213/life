@@ -12,24 +12,22 @@ pub enum HttpMethod {
 struct ContentLength(usize);
 
 #[derive(Debug)]
-struct RequestLine<'a> {
+struct RequestLine<'buf> {
     method: HttpMethod,
-    target_path: &'a str,
-    version: &'a str,
+    target_path: &'buf str,
+    version: &'buf str,
 }
 
 #[derive(Debug)]
-pub struct Request<'a> {
-    request_line: RequestLine<'a>,
-    headers: HashMap<String, &'a str>,
-    body: &'a [u8],
-    query: HashMap<&'a str, &'a str>,
-    path: &'a str
+pub struct Request<'buf> {
+    request_line: RequestLine<'buf>,
+    headers: HashMap<String, &'buf str>,
+    body: &'buf [u8],
+    query: HashMap<&'buf str, &'buf str>,
+    path: &'buf str,
 }
 
-//GET / HTTP/1.1\r\nHost: 127.0.0.1:8080\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n
-
-impl<'a> Request<'a> {
+impl<'buf> Request<'buf> {
     pub fn method(&self) -> &HttpMethod {
         &self.request_line.method
     }
@@ -58,7 +56,7 @@ impl<'a> Request<'a> {
         self.headers.get(&name.to_ascii_uppercase()).copied()
     }
 
-    pub fn parse(data_buffer: &'a [u8]) -> Result<Request<'a>, AppError> {
+    pub fn parse(data_buffer: &'buf [u8]) -> Result<Request<'buf>, AppError> {
         let mut request_line: &[u8] = &[];
         let mut headers: &[u8] = &[];
         let mut index = 0;
@@ -115,7 +113,7 @@ impl<'a> Request<'a> {
             headers: headers_map,
             body,
             query: parse_query.1,
-            path: parse_query.0
+            path: parse_query.0,
         })
     }
 
@@ -127,7 +125,7 @@ impl<'a> Request<'a> {
         }
     }
 
-    fn parse_request_line(request_line_bytes: &'a [u8]) -> Result<RequestLine<'a>, AppError> {
+    fn parse_request_line(request_line_bytes: &'buf [u8]) -> Result<RequestLine<'buf>, AppError> {
         let rl = str::from_utf8(request_line_bytes)?;
         let mut rl_iter = rl.split_whitespace();
 
@@ -147,8 +145,8 @@ impl<'a> Request<'a> {
     }
 
     fn parse_header(
-        header_bytes: &'a [u8],
-    ) -> Result<(Option<ContentLength>, HashMap<String, &'a str>), AppError> {
+        header_bytes: &'buf [u8],
+    ) -> Result<(Option<ContentLength>, HashMap<String, &'buf str>), AppError> {
         let headers = str::from_utf8(header_bytes)?;
         let headers_iters = headers.split("\r\n");
         let mut headers_map = HashMap::new();
@@ -176,29 +174,27 @@ impl<'a> Request<'a> {
         Ok((content_length, headers_map))
     }
 
-    fn parse_query(target_path: &str) -> Result<(&str ,HashMap<&str, &str>), AppError> {
+    fn parse_query(target_path: &str) -> Result<(&str, HashMap<&str, &str>), AppError> {
         let mut query = HashMap::new();
         let mut path = target_path;
 
-        let split_query = target_path.rsplit_once("?");
-
-        if split_query.iter().count() > 1 {
-            return Err(AppError::RequestRouteInvalid)
-        }
+        let split_query = target_path.split_once("?");
 
         if let Some(q) = split_query {
             path = q.0;
             let query_params = q.1.split("&");
             for param in query_params {
                 let kv = param.split_once("=");
-                if let Some((key, value)) = kv {
+                if let Some((key, value)) = kv
+                    && !key.is_empty()
+                {
                     query.insert(key, value);
                 } else {
                     return Err(AppError::RequestRouteInvalid);
                 }
             }
         } else {
-            return Ok((path, query))
+            return Ok((path, query));
         }
 
         Ok((path, query))

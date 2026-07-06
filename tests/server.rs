@@ -4,14 +4,24 @@ use std::{
     thread,
 };
 
-use life::server::Server;
+use life::{
+    http::{
+        request::Request,
+        response::{Response, StatusCode},
+    },
+    server::Server,
+};
+
+fn hello_world<'a>(_: &'a Request<'_>) -> Response<'a> {
+    Response::html(StatusCode::Ok, "<h1>HELLO WORLD</h1>")
+}
 
 #[test]
 fn handle_client_writes_http_response_over_tcp() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let mut app = Server::new();
-    app.routes.get("/");
+    app.routes.get("/", hello_world);
 
     let server = thread::spawn(move || {
         let (stream, _) = listener.accept().unwrap();

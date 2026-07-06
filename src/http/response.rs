@@ -1,6 +1,6 @@
-pub struct Response<'a> {
+pub struct Response<'header> {
     status_code: StatusCode,
-    headers: Vec<(&'a str, &'a str)>,
+    headers: Vec<(&'header str, &'header str)>,
     body_bytes: Vec<u8>,
 }
 
@@ -31,10 +31,10 @@ impl StatusCode {
     }
 }
 
-impl<'a> Response<'a> {
+impl<'header> Response<'header> {
     pub fn new(
         status_code: StatusCode,
-        headers: Vec<(&'a str, &'a str)>,
+        headers: Vec<(&'header str, &'header str)>,
         body_bytes: Vec<u8>,
     ) -> Self {
         Self {

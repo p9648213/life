@@ -10,11 +10,13 @@ fn parses_valid_get_request() {
 
     assert!(matches!(request.method(), HttpMethod::Get));
     assert_eq!(request.target_path(), "/notes");
+    assert_eq!(request.path(), "/notes");
     assert_eq!(request.version(), "HTTP/1.1");
     assert_eq!(request.get_header("host"), Some("localhost"));
     assert_eq!(request.get_header("Host"), Some("localhost"));
     assert_eq!(request.get_header("HOST"), Some("localhost"));
     assert_eq!(request.body(), b"");
+    assert!(request.query().is_empty());
 }
 
 #[test]
@@ -25,7 +27,64 @@ fn parses_valid_post_body_using_content_length() {
 
     assert!(matches!(request.method(), HttpMethod::Post));
     assert_eq!(request.target_path(), "/notes");
+    assert_eq!(request.path(), "/notes");
     assert_eq!(request.body(), b"title=Hello&body=World");
+}
+
+#[test]
+fn separates_path_from_query_parameters() {
+    let request = parse_ok(b"GET /resources?id=123 HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    assert_eq!(request.target_path(), "/resources?id=123");
+    assert_eq!(request.path(), "/resources");
+    assert_eq!(request.query().get("id"), Some(&"123"));
+}
+
+#[test]
+fn parses_empty_query_values() {
+    let request = parse_ok(b"GET /resources?id= HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    assert_eq!(request.path(), "/resources");
+    assert_eq!(request.query().get("id"), Some(&""));
+}
+
+#[test]
+fn repeated_query_keys_keep_the_last_value() {
+    let request =
+        parse_ok(b"GET /resources?id=first&id=second HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    assert_eq!(request.path(), "/resources");
+    assert_eq!(request.query().get("id"), Some(&"second"));
+}
+
+#[test]
+fn encoded_and_plus_query_values_are_preserved_without_decoding() {
+    let request =
+        parse_ok(b"GET /search?q=hello%20world+again HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    assert_eq!(request.path(), "/search");
+    assert_eq!(request.query().get("q"), Some(&"hello%20world+again"));
+}
+
+#[test]
+fn rejects_query_pairs_without_equals() {
+    let result = Request::parse(b"GET /resources?id HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_empty_query_keys() {
+    let result = Request::parse(b"GET /resources?=123 HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_empty_query_string() {
+    let result = Request::parse(b"GET /resources? HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    assert!(result.is_err());
 }
 
 #[test]

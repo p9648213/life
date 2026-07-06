@@ -1,29 +1,25 @@
-pub mod router;
-
 use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
 };
 
-use crate::{
-    http::{
-        request::{HttpMethod, Request},
-        response::{Response, StatusCode},
-    },
-    server::router::Router,
+use crate::http::{
+    request::Request,
+    response::{Response, StatusCode},
+    router::Router,
 };
 
-pub struct Server<'a> {
-    pub routes: Router<'a>,
+pub struct Server<'server> {
+    pub routes: Router<'server>,
 }
 
-impl<'a> Default for Server<'a> {
+impl<'server> Default for Server<'server> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'a> Server<'a> {
+impl<'server> Server<'server> {
     pub fn new() -> Self {
         Self {
             routes: Router::new(),
@@ -50,33 +46,14 @@ impl<'a> Server<'a> {
             }
         };
 
-        match request.method() {
-            HttpMethod::Get => {
-                let routes = self.routes.get_routes();
-                let path = request.path();
-
-                if let Some(handler) = routes.get(path) {
-                    let response = handler(&request);
-                    stream.write_all(&response.to_bytes())?;
-                }
-            }
-            HttpMethod::Post => {
-                let routes = self.routes.post_routes();
-                let path = request.target_path();
-
-                if let Some(handler) = routes.get(path) {
-                    let response = handler(&request);
-                    stream.write_all(&response.to_bytes())?;
-                }
-            }
-        }
+        let response = self.routes.handle_request(&request);
+        stream.write_all(&response.to_bytes())?;
 
         Ok(())
     }
 
     pub fn run(&self, address: &str) -> std::io::Result<()> {
         let listener = TcpListener::bind(address)?;
-        println!("Bound to {}", address);
         for stream in listener.incoming() {
             self.handle_client(stream?)?;
         }

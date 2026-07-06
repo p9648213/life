@@ -11,13 +11,11 @@ Routing is the layer between HTTP parsing and application logic. It should not k
 - Handler functions
 - Separating the path from the query string
 - `404 Not Found`
-- `405 Method Not Allowed`
 
 ## Where to Look
 
 - MDN request methods: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
 - MDN 404: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404
-- MDN 405: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/405
 - Rust pattern matching: https://doc.rust-lang.org/book/ch06-02-match.html
 
 ## Routing Scope
@@ -63,9 +61,8 @@ These are sample routes for exercising the backend. Replace them when your real 
 3. Match on method and path.
 4. Return a response for each route.
 5. Return `404` when the path is unknown.
-6. Return `405` when the path exists but the method is wrong.
-7. Keep query parsing separate from route lookup.
-8. Move route-specific behavior into handler functions when the match grows.
+6. Keep query parsing separate from route lookup.
+7. Move route-specific behavior into handler functions when the match grows.
 
 ## Tiny Pseudocode Shape
 
@@ -76,9 +73,6 @@ route(request):
 
   if method is GET and path is "/health":
     return health response
-
-  if path exists but method is wrong:
-    return 405
 
   return 404
 ```
@@ -109,8 +103,6 @@ curl -i -X POST http://127.0.0.1:8080/
   - No. Connection code owns reading and writing; the router consumes a parsed request and returns a response.
 - Should a handler manually write bytes to the stream?
   - No. A handler returns a response.
-- How can you detect path exists but method is wrong?
-  - Check whether the exact path is registered for another method. An existing path with the wrong method is `405`; a path that is not registered at all is `404`. Neither case is a malformed `400` request.
 - Should route matching allocate strings?
   - It should be able to borrow the parsed path. Query storage may allocate separately, but route lookup does not need to construct a new path string.
 - Why are dynamic path segments excluded?
@@ -122,7 +114,6 @@ You are done when:
 
 - Different paths return different responses.
 - Unknown paths return 404.
-- Wrong methods return 405.
 - Query-bearing GET and POST targets match using the path without the query string.
 - Query parsing behavior is covered for valid, empty, repeated, encoded, and malformed values according to the supported subset.
 - Router tests can run without opening a TCP socket.
