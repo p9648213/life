@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::http::error::AppError;
+use crate::http::error::HttpError;
 
 #[derive(Debug, PartialEq)]
 pub enum HttpMethod {
@@ -56,7 +56,7 @@ impl<'buf> Request<'buf> {
         self.headers.get(&name.to_ascii_uppercase()).copied()
     }
 
-    pub fn parse(data_buffer: &'buf [u8]) -> Result<Request<'buf>, AppError> {
+    pub fn parse(data_buffer: &'buf [u8]) -> Result<Request<'buf>, HttpError> {
         let mut request_line: &[u8] = &[];
         let mut headers: &[u8] = &[];
         let mut index = 0;
@@ -80,14 +80,14 @@ impl<'buf> Request<'buf> {
         }
 
         if headers.is_empty() {
-            return Err(AppError::RequestHeaderInvalid);
+            return Err(HttpError::RequestHeaderInvalid);
         }
 
         let request_line = Self::parse_request_line(request_line)?;
         let (content_length, headers_map) = Self::parse_header(headers)?;
 
         if request_line.version != "HTTP/1.1" {
-            return Err(AppError::RequestHttpVersionInvalid);
+            return Err(HttpError::RequestHttpVersionInvalid);
         }
 
         let parse_query = Self::parse_query(request_line.target_path)?;
@@ -97,12 +97,12 @@ impl<'buf> Request<'buf> {
                 if content_length.0 == data_buffer.len() - body_start_index {
                     &data_buffer[body_start_index..]
                 } else {
-                    return Err(AppError::ContentLengthSizeError);
+                    return Err(HttpError::ContentLengthSizeError);
                 }
             }
             None => {
                 if body_start_index != data_buffer.len() {
-                    return Err(AppError::RequestHeaderInvalid);
+                    return Err(HttpError::RequestHeaderInvalid);
                 }
                 &[]
             }
@@ -117,15 +117,15 @@ impl<'buf> Request<'buf> {
         })
     }
 
-    fn parse_method(method: &str) -> Result<HttpMethod, AppError> {
+    fn parse_method(method: &str) -> Result<HttpMethod, HttpError> {
         match method {
             "GET" => Ok(HttpMethod::Get),
             "POST" => Ok(HttpMethod::Post),
-            _ => Err(AppError::MethodParseError),
+            _ => Err(HttpError::MethodParseError),
         }
     }
 
-    fn parse_request_line(request_line_bytes: &'buf [u8]) -> Result<RequestLine<'buf>, AppError> {
+    fn parse_request_line(request_line_bytes: &'buf [u8]) -> Result<RequestLine<'buf>, HttpError> {
         let rl = str::from_utf8(request_line_bytes)?;
         let mut rl_iter = rl.split_whitespace();
 
@@ -134,7 +134,7 @@ impl<'buf> Request<'buf> {
         let version = rl_iter.next().unwrap_or_default();
 
         if rl_iter.next().is_some() || target_path.is_empty() || version.is_empty() {
-            Err(AppError::RequestLineInvalid)
+            Err(HttpError::RequestLineInvalid)
         } else {
             Ok(RequestLine {
                 method,
@@ -146,7 +146,7 @@ impl<'buf> Request<'buf> {
 
     fn parse_header(
         header_bytes: &'buf [u8],
-    ) -> Result<(Option<ContentLength>, HashMap<String, &'buf str>), AppError> {
+    ) -> Result<(Option<ContentLength>, HashMap<String, &'buf str>), HttpError> {
         let headers = str::from_utf8(header_bytes)?;
         let headers_iters = headers.split("\r\n");
         let mut headers_map = HashMap::new();
@@ -158,7 +158,7 @@ impl<'buf> Request<'buf> {
                 let value = value.trim();
 
                 if name.is_empty() {
-                    return Err(AppError::RequestHeaderInvalid);
+                    return Err(HttpError::RequestHeaderInvalid);
                 }
 
                 headers_map.insert(name.to_ascii_uppercase(), value);
@@ -167,14 +167,14 @@ impl<'buf> Request<'buf> {
                     content_length = Some(ContentLength(value.parse::<usize>()?));
                 }
             } else {
-                return Err(AppError::RequestHeaderInvalid);
+                return Err(HttpError::RequestHeaderInvalid);
             }
         }
 
         Ok((content_length, headers_map))
     }
 
-    fn parse_query(target_path: &str) -> Result<(&str, HashMap<&str, &str>), AppError> {
+    fn parse_query(target_path: &str) -> Result<(&str, HashMap<&str, &str>), HttpError> {
         let mut query = HashMap::new();
         let mut path = target_path;
 
@@ -190,7 +190,7 @@ impl<'buf> Request<'buf> {
                 {
                     query.insert(key, value);
                 } else {
-                    return Err(AppError::RequestRouteInvalid);
+                    return Err(HttpError::RequestRouteInvalid);
                 }
             }
         } else {
