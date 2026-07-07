@@ -27,7 +27,7 @@ impl<'server> Server<'server> {
     }
 
     pub fn handle_client(&self, mut stream: TcpStream) -> std::io::Result<()> {
-        let mut buffer = [0u8; 512];
+        let mut buffer = [0u8; 65536];
         let bytes_read = stream.read(&mut buffer)?;
 
         if bytes_read == 0 {
@@ -35,6 +35,8 @@ impl<'server> Server<'server> {
         }
 
         let data = &buffer[..bytes_read];
+
+        println!("{}", str::from_utf8(data).unwrap());
 
         let request = match Request::parse(data) {
             Ok(request) => request,
