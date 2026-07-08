@@ -6,4 +6,4 @@ edition = "2024"
 [dependencies]
 
 [build-dependencies]
-template_compiler = { path = "crates/template_compiler" }
+htmlc = { path = "crates/htmlc" }
