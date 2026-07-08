@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "life"
 version = "0.1.0"
+dependencies = [
+ "template_compiler",
+]
+
+[[package]]
+name = "template_compiler"
+version = "0.1.0"
