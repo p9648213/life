@@ -12,31 +12,37 @@ fn main() {
     //   include!(concat!(env!("OUT_DIR"), "/templates.rs"));
     //}
     println!("cargo:rerun-if-changed=templates");
+    compile_template();
+}
 
+fn compile_template() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let templates_dir = manifest_dir.join("templates");
     let templates = fs::read_dir(&templates_dir).unwrap();
-    read_all_file(templates);
+    let mut items = vec![];
+    find_all_file(templates, &mut items);
 }
 
-fn read_all_file(read_dir: ReadDir) {
+fn find_all_file(read_dir: ReadDir, items: &mut Vec<(String, String, String)>) {
     for item in read_dir {
         let entry = item.unwrap();
         let path = entry.path();
-        if entry.file_type().unwrap().is_file() {
+        if entry.file_type().unwrap().is_file() && path.extension().unwrap() == "html" {
             let full_path = path.display().to_string();
-            let mut fn_name = full_path
+            let name = full_path
                 .split_once("/templates/")
                 .unwrap()
                 .1
-                .split_once(".")
+                .split_once(".html")
                 .unwrap()
-                .0
-                .replace("/", "_");
-            fn_name = format!("render_{}", fn_name);
-            println!("cargo::warning={}", fn_name);
+                .0;
+
+            let fn_name = name.replace("/", "_");
+            let struct_name = name;
+
+            items.push((full_path, fn_name, struct_name));
         } else {
-            read_all_file(path.read_dir().unwrap());
+            find_all_file(path.read_dir().unwrap(), items);
         }
     }
 }
