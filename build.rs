@@ -1,4 +1,8 @@
-use std::{env, fs, path::PathBuf};
+use std::{
+    env,
+    fs::{self, ReadDir},
+    path::PathBuf,
+};
 
 fn main() {
     //let generated = generate_r(...);
@@ -11,16 +15,28 @@ fn main() {
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let templates_dir = manifest_dir.join("templates");
-
     let templates = fs::read_dir(&templates_dir).unwrap();
+    read_all_file(templates);
+}
 
-    for entry in templates {
-        let entry = entry.unwrap();
+fn read_all_file(read_dir: ReadDir) {
+    for item in read_dir {
+        let entry = item.unwrap();
         let path = entry.path();
-        if path.is_file() {
-            file.push(entry);
+        if entry.file_type().unwrap().is_file() {
+            let full_path = path.display().to_string();
+            let mut fn_name = full_path
+                .split_once("/templates/")
+                .unwrap()
+                .1
+                .split_once(".")
+                .unwrap()
+                .0
+                .replace("/", "_");
+            fn_name = format!("render_{}", fn_name);
+            println!("cargo::warning={}", fn_name);
         } else {
-            todo!()
+            read_all_file(path.read_dir().unwrap());
         }
     }
 }
