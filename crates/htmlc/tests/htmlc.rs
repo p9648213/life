@@ -1,4 +1,4 @@
-use htmlc::compiler::{generate_r, parse_html};
+use htmlc::compiler::generate_code;
 
 fn remove_whitespace(value: &str) -> String {
     value
@@ -9,8 +9,7 @@ fn remove_whitespace(value: &str) -> String {
 
 #[test]
 fn html_to_rust_code() {
-    let (tokens, var_count) = parse_html("<div><span>{name}</span></div>");
-    let code = generate_r(tokens, "test", "Test", var_count);
+    let code = generate_code("<div><span>{name}</span></div>", "test", "Test");
     let expected = r#"
         pub struct TestView<'a> {
             name: &'a str,
@@ -28,8 +27,7 @@ fn html_to_rust_code() {
 
 #[test]
 fn html_to_rust_code_2() {
-    let (tokens, var_count) = parse_html("<div></div><span>{name}</span>");
-    let code = generate_r(tokens, "test", "Test", var_count);
+    let code = generate_code("<div></div><span>{name}</span>", "test", "Test");
     let expected = r#"
         pub struct TestView<'a> {
             name: &'a str,
@@ -47,8 +45,7 @@ fn html_to_rust_code_2() {
 
 #[test]
 fn html_to_rust_code_3() {
-    let (tokens, var_count) = parse_html("<div>{age}</div><span>{name}</span>");
-    let code = generate_r(tokens, "test", "Test", var_count);
+    let code = generate_code("<div>{age}</div><span>{name}</span>", "test", "Test");
     let expected = r#"
         pub struct TestView<'a> {
             age: &'a str,
@@ -69,8 +66,7 @@ fn html_to_rust_code_3() {
 
 #[test]
 fn html_to_rust_code_4() {
-    let (tokens, var_count) = parse_html("<div>{age}{name}</div>");
-    let code = generate_r(tokens, "test", "Test", var_count);
+    let code = generate_code("<div>{age}{name}</div>", "test", "Test");
     let expected = r#"
         pub struct TestView<'a> {
             age: &'a str,

@@ -6,7 +6,7 @@ pub enum Token {
 
 type VarCount = u32;
 
-pub fn parse_html(html: &str) -> (Vec<Token>, VarCount) {
+fn parse_html(html: &str) -> (Vec<Token>, VarCount) {
     let mut tokens = vec![];
     let mut literal_index = 0;
     let mut variable_index = 0;
@@ -29,7 +29,7 @@ pub fn parse_html(html: &str) -> (Vec<Token>, VarCount) {
     (tokens, variable_count)
 }
 
-pub fn generate_r(
+fn generate_r(
     tokens: Vec<Token>,
     fn_name: &str,
     struct_name: &str,
@@ -37,7 +37,11 @@ pub fn generate_r(
 ) -> String {
     let mut current_var = 0;
     let mut view_struct = String::new();
-    view_struct.push_str(&format!("pub struct {}View<'a> {{", struct_name));
+    if variable_count == 0 {
+        view_struct.push_str(&format!("pub struct {}View {{", struct_name));
+    } else {
+        view_struct.push_str(&format!("pub struct {}View<'a> {{", struct_name));
+    }
     for num in 0..variable_count {
         view_struct.push_str(&format!("<var{}>: &'a str,", num));
     }
@@ -62,4 +66,9 @@ pub fn generate_r(
     }
     function.push('}');
     format!("{} {}", view_struct, function)
+}
+
+pub fn generate_code(html: &str, fn_name: &str, struct_name: &str) -> String {
+    let (token, var_count) = parse_html(html);
+    generate_r(token, fn_name, struct_name, var_count)
 }
