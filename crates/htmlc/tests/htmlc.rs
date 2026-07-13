@@ -1,10 +1,30 @@
 use htmlc::compiler::generate_code;
 
-fn remove_whitespace(value: &str) -> String {
-    value
-        .chars()
-        .filter(|character| !character.is_whitespace())
-        .collect::<String>()
+fn normalize_generated_rust(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for character in value.chars() {
+        if in_string {
+            normalized.push(character);
+
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+        } else if character == '"' {
+            in_string = true;
+            normalized.push(character);
+        } else if !character.is_whitespace() {
+            normalized.push(character);
+        }
+    }
+
+    normalized
 }
 
 #[test]
@@ -21,7 +41,10 @@ fn renders_a_single_variable_between_literal_fragments() {
             out.push_str("</span></div>");
         }
         "#;
-    assert_eq!(remove_whitespace(&code), remove_whitespace(expected));
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected)
+    );
 }
 
 #[test]
@@ -39,7 +62,10 @@ fn renders_a_variable_after_multiple_static_elements() {
         }
         "#;
 
-    assert_eq!(remove_whitespace(&code), remove_whitespace(expected));
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected)
+    );
 }
 
 #[test]
@@ -60,7 +86,10 @@ fn renders_multiple_variables_separated_by_literals() {
         }
         "#;
 
-    assert_eq!(remove_whitespace(&code), remove_whitespace(expected));
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected)
+    );
 }
 
 #[test]
@@ -80,7 +109,10 @@ fn renders_adjacent_variables_in_their_original_order() {
         }
         "#;
 
-    assert_eq!(remove_whitespace(&code), remove_whitespace(expected));
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected)
+    );
 }
 
 #[test]
@@ -103,16 +135,15 @@ fn escapes_quotes_in_html_attributes() {
             out.push_str("</div>");
         }
         "#;
-    assert_eq!(remove_whitespace(&code), remove_whitespace(expected));
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected)
+    );
 }
 
 #[test]
 fn escapes_quotes_backslashes_and_newlines_in_literal_html() {
-    let code = generate_code(
-        "<a href=\"C:\\\\docs\">{label}</a>\n",
-        "link",
-        "Link",
-    );
+    let code = generate_code("<a href=\"C:\\\\docs\">{label}</a>\n", "link", "Link");
 
     let expected = r#"
         pub struct LinkView<'a> {
@@ -126,21 +157,25 @@ fn escapes_quotes_backslashes_and_newlines_in_literal_html() {
         }
         "#;
 
-    assert_eq!(remove_whitespace(&code), remove_whitespace(expected));
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected)
+    );
 }
 
 #[test]
-fn static_template_has_no_view_lifetime_or_fields() {
+fn static_template_has_no_view_struct_or_parameter() {
     let code = generate_code("<!doctype html><p>Welcome</p>", "welcome", "Welcome");
     let expected = r#"
-        pub struct WelcomeView {}
-
-        pub fn render_welcome(out: &mut String, view: WelcomeView) {
+        pub fn render_welcome(out: &mut String) {
             out.push_str("<!doctype html><p>Welcome</p>");
         }
         "#;
 
-    assert_eq!(remove_whitespace(&code), remove_whitespace(expected));
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected)
+    );
 }
 
 #[test]
@@ -158,5 +193,49 @@ fn preserves_unicode_html_around_a_variable() {
         }
         "#;
 
-    assert_eq!(remove_whitespace(&code), remove_whitespace(expected));
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected)
+    );
+}
+
+#[test]
+fn preserves_meaningful_whitespace_in_literal_html() {
+    let code = generate_code("<p>Hello world</p>", "message", "Message");
+
+    assert!(
+        code.contains(r#"out.push_str("<p>Hello world</p>");"#),
+        "generated code did not preserve the literal space: {code}"
+    );
+}
+
+#[test]
+fn does_not_write_runtime_values_directly_into_html() {
+    let code = generate_code("<p>{value}</p>", "message", "Message");
+
+    assert!(
+        !code.contains("out.push_str(view.value);"),
+        "runtime values must pass through HTML escaping: {code}"
+    );
+    assert_eq!(
+        code.matches("view.value").count(),
+        1,
+        "the generated renderer should read the runtime value exactly once: {code}"
+    );
+}
+
+#[test]
+fn repeated_variable_uses_one_context_field() {
+    let code = generate_code("<h1>{title}</h1><p>{title}</p>", "article", "Article");
+
+    assert_eq!(
+        code.matches("title: &'a str").count(),
+        1,
+        "a repeated variable should create only one context field: {code}"
+    );
+    assert_eq!(
+        code.matches("view.title").count(),
+        2,
+        "both variable occurrences should read the shared context field: {code}"
+    );
 }

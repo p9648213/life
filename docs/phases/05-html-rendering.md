@@ -1,6 +1,6 @@
 # Phase 05: HTML Rendering and Template Compiler Foundation
 
-Goal: return real HTML pages from your server through the first version of a small compiled-template rendering engine, without making HTML the core app architecture.
+Goal: build the first usable version of a small compiled-template engine that turns template source into Rust render code before request handling.
 
 You are building the foundation for a real template compiler. The long-term direction is similar in spirit to Sailfish: template structure is translated before request handling, and rendering should mostly append known literals and typed values into an output buffer.
 
@@ -8,17 +8,13 @@ For this phase, "compiled template engine" means the request-time render path mu
 
 Keep the compiler small. It does not need loops, conditionals, inheritance, includes, macros, or a complete HTML parser yet. The foundation matters more than features: the generated render code should already have the shape you want to keep later.
 
-Treat these pages as an adapter for browser workflows, not as the definition of the backend core.
+This phase focuses on the compiler and generated render boundary. Multiple application pages, reusable layouts, forms, navigation, styling, and a complete browser flow can be added after the compiler foundation is solid.
 
 ## What to Learn
 
-- HTML document structure
 - Escaping user-controlled text
-- Links
-- Forms
 - A minimal template compiler pipeline
 - A generated render API
-- Reusable layout templates and helpers
 - The difference between compile-time template structure and request-time values
 - Why generated render code can be faster than runtime template interpretation
 
@@ -39,7 +35,7 @@ template text
 A tokenizer turns template text into meaningful pieces. For example:
 
 ```html
-<h1>{{ title }}</h1>
+<h1>{title}</h1>
 ```
 
 Can become:
@@ -58,48 +54,32 @@ crate::html::escape::text(out, ctx.title);
 out.push_str("</h1>");
 ```
 
-For this phase, you do not need parser generators, formal grammars, LLVM, bytecode, optimization passes, proc macro internals, or a full HTML parser. A simple scanner that reads until `{{`, reads a variable name until `}}`, and repeats is enough to begin.
+For this phase, you do not need parser generators, formal grammars, LLVM, bytecode, optimization passes, proc macro internals, or a full HTML parser. A simple scanner that reads until `{`, reads a variable name until `}`, and repeats is enough to begin.
 
 The important early errors are practical:
 
-- Opened `{{` but never found `}}`.
+- Opened `{` but never found `}`.
 - Empty variable name.
 - Invalid variable name.
 - Template generated invalid Rust.
 
 ## Where to Look
 
-- MDN HTML basics: https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/HTML_basics
-- MDN forms: https://developer.mozilla.org/en-US/docs/Learn/Forms
 - OWASP XSS overview: https://owasp.org/www-community/attacks/xss/
 
-## Minimum Page Shape
+## Scope Boundary
 
-Every page should eventually produce:
-
-```html
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>...</title>
-</head>
-<body>
-  ...
-</body>
-</html>
-```
+One small template is enough to prove this phase. It should contain literal HTML and at least one runtime variable so the generated API and escaping behavior are exercised end to end. Building a full set of pages is not part of this checkpoint.
 
 ## Step-by-Step Work
 
-1. Define a tiny template source format. Start with literal HTML plus escaped variables such as `{{ title }}`.
+1. Define a tiny template source format. Start with literal HTML plus escaped variables such as `{title}`.
 2. Write a compiler path that turns template source into Rust code.
 3. Generate render functions that write into a caller-provided output buffer.
-4. Make generated templates for a layout, a home page, a health or debug page, and one temporary form page.
-5. Add an HTML escaping helper before displaying user text.
-6. Keep routing responsible for choosing handlers/templates, not for building HTML strings inline.
-7. Add links between pages.
-8. Keep the generated render path allocation-conscious from the beginning.
+4. Add an HTML escaping helper before rendering runtime text.
+5. Compile and call one dynamic template end to end so generated Rust and the runtime data boundary are checked together.
+6. Keep compiler and rendering logic separate from routing and TCP code.
+7. Keep the generated render path allocation-conscious from the beginning.
 
 ## Compiled Template Requirement
 
@@ -109,15 +89,14 @@ The hot render path should look conceptually like:
 append literal HTML
 append escaped typed value
 append literal HTML
-append already-rendered child content
 ```
 
 It should not look like:
 
 ```text
 read template source
-find "{{ name }}"
-replace "{{ name }}" with a value
+find "{name}"
+replace "{name}" with a value
 repeat for every placeholder
 ```
 
@@ -156,13 +135,13 @@ A simple pipeline is:
 ```text
 templates/home.html
   -> read source
-  -> tokenize literals and {{ variables }}
+  -> tokenize literals and {variables}
   -> generate Rust render function
   -> write generated file
   -> include or call generated render code from handlers
 ```
 
-The first tokenizer does not need to understand all HTML. It can treat everything outside `{{ ... }}` as literal text. That is acceptable because this compiler runs before request handling. Later phases can decide whether to add stricter HTML parsing.
+The first tokenizer does not need to understand all HTML. It can treat everything outside `{...}` as literal text. That is acceptable because this compiler runs before request handling. Later phases can decide whether to add stricter HTML parsing.
 
 Keep generated code boring. Boring generated code is easier to inspect, test, profile, and replace.
 
@@ -216,7 +195,7 @@ pub fn render(ctx: &Page<'_>, out: &mut String) {
 Avoid generated code shaped like:
 
 ```rust
-let html = template_source.replace("{{ title }}", ctx.title);
+let html = template_source.replace("{title}", ctx.title);
 ```
 
 The first version should:
@@ -259,13 +238,12 @@ Submit sample text like:
 <script>alert("xss")</script>
 ```
 
-When displayed, it should appear as text, not run as code.
+When rendered, it should be escaped as text rather than emitted as raw markup.
 
 ## Questions to Answer
 
 - Why does server-generated HTML need escaping?
 - What is the difference between HTML text and an HTML attribute?
-- What does `Content-Type: text/html; charset=utf-8` tell the browser?
 - What work happens before request handling in your compiler?
 - What generated code still runs at request time?
 - Why is string-based placeholder lookup slower and less type-safe than typed template data?
@@ -276,13 +254,14 @@ When displayed, it should appear as text, not run as code.
 
 You are done when:
 
-- Pages render in the browser.
-- Pages link to each other.
-- User text is escaped before display.
+- The compiler accepts literal HTML and the documented `{name}` variable syntax.
+- Unmatched, empty, and invalid variables return useful compiler errors.
+- At least one dynamic template compiles into valid Rust and can be called with request-time data.
+- Runtime text is HTML-escaped in the generated output.
 - Template source is compiled before request handling.
 - Generated render code does not parse template source or replace placeholders during request handling.
 - Generated templates render into an explicit output buffer or equivalent response body builder.
-- HTML helpers are separate from routing and TCP code.
+- Compiler and rendering helpers are separate from routing and TCP code.
 - The basic compiler shape can be extended in the continuation phase without changing the handler/render boundary.
 
 ## Continue
