@@ -1,5 +1,4 @@
 use life::{
-    html::render::render,
     http::{
         request::Request,
         response::{Response, StatusCode},
@@ -8,9 +7,7 @@ use life::{
 };
 
 fn hello_word<'buf, 'req>(_: &'req Request<'buf>) -> Response<'req> {
-    let span = render("span", "Hello World", "", "");
-    let div = render("div", &span, "", "");
-    Response::html(StatusCode::Ok, &div)
+    Response::html(StatusCode::Ok, "")
 }
 
 fn main() -> std::io::Result<()> {

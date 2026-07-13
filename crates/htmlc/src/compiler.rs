@@ -55,7 +55,8 @@ fn generate_r(
     for token in tokens {
         match token {
             Token::Literal(literal) => {
-                function.push_str(&format!("out.push_str(\"{}\");", literal))
+                let literal = format!("{:?}", literal);
+                function.push_str(&format!(r#"out.push_str({});"#, literal))
             }
             Token::Variable(variable) => {
                 view_struct = view_struct.replace(&format!("<var{}>", current_var), &variable);
