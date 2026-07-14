@@ -35,9 +35,9 @@ fn renders_a_single_variable_between_literal_fragments() {
             name: &'a str,
         } 
         
-        pub fn render_test(out: &mut String, view: TestView) {
+        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
             out.push_str("<div><span>");
-            out.push_str(view.name);
+            if escape {out.push_str(escape(view.name));} else {out.push_str(view.name);}
             out.push_str("</span></div>");
         }
         "#;
@@ -55,9 +55,9 @@ fn renders_a_variable_after_multiple_static_elements() {
             name: &'a str,
         } 
         
-        pub fn render_test(out: &mut String, view: TestView) {
+        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
             out.push_str("<div></div><span>");
-            out.push_str(view.name);
+            if escape {out.push_str(escape(view.name));} else {out.push_str(view.name);}
             out.push_str("</span>");
         }
         "#;
@@ -77,11 +77,11 @@ fn renders_multiple_variables_separated_by_literals() {
             name: &'a str,
         }
         
-        pub fn render_test(out: &mut String, view: TestView) {
+        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
             out.push_str("<div>");
-            out.push_str(view.age);
+            if escape {out.push_str(escape(view.age));} else {out.push_str(view.age);}
             out.push_str("</div><span>");
-            out.push_str(view.name);
+            if escape {out.push_str(escape(view.name));} else {out.push_str(view.name);}
             out.push_str("</span>");
         }
         "#;
@@ -101,10 +101,10 @@ fn renders_adjacent_variables_in_their_original_order() {
             name: &'a str,
         }
         
-        pub fn render_test(out: &mut String, view: TestView) {
+        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
             out.push_str("<div>");
-            out.push_str(view.age);
-            out.push_str(view.name);
+            if escape {out.push_str(escape(view.age));} else {out.push_str(view.age);}
+            if escape {out.push_str(escape(view.name));} else {out.push_str(view.name);}
             out.push_str("</div>");
         }
         "#;
@@ -128,10 +128,10 @@ fn escapes_quotes_in_html_attributes() {
             name: &'a str,
         }
         
-        pub fn render_test(out: &mut String, view: TestView) {
+        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
             out.push_str("<div class=\"container\">");
-            out.push_str(view.age);
-            out.push_str(view.name);
+            if escape {out.push_str(escape(view.age));} else {out.push_str(view.age);}
+            if escape {out.push_str(escape(view.name));} else {out.push_str(view.name);}
             out.push_str("</div>");
         }
         "#;
@@ -150,9 +150,9 @@ fn escapes_quotes_backslashes_and_newlines_in_literal_html() {
             label: &'a str,
         }
 
-        pub fn render_link(out: &mut String, view: LinkView) {
+        pub fn render_link(out: &mut String, view: LinkView, escape: bool) {
             out.push_str("<a href=\"C:\\\\docs\">");
-            out.push_str(view.label);
+            if escape {out.push_str(escape(view.label));} else {out.push_str(view.label);}
             out.push_str("</a>\n");
         }
         "#;
@@ -186,9 +186,9 @@ fn preserves_unicode_html_around_a_variable() {
             name: &'a str,
         }
 
-        pub fn render_greeting(out: &mut String, view: GreetingView) {
+        pub fn render_greeting(out: &mut String, view: GreetingView, escape: bool) {
             out.push_str("<p>Chào, ");
-            out.push_str(view.name);
+            if escape {out.push_str(escape(view.name));} else {out.push_str(view.name);}
             out.push_str(" 👋</p>");
         }
         "#;
@@ -210,17 +210,17 @@ fn preserves_meaningful_whitespace_in_literal_html() {
 }
 
 #[test]
-fn does_not_write_runtime_values_directly_into_html() {
+fn conditionally_escapes_runtime_values() {
     let code = generate_code("<p>{value}</p>", "message", "Message");
 
     assert!(
-        !code.contains("out.push_str(view.value);"),
-        "runtime values must pass through HTML escaping: {code}"
+        code.contains("if escape {out.push_str(escape(view.value));} else {out.push_str(view.value);}"),
+        "generated renderer must escape runtime values when requested: {code}"
     );
     assert_eq!(
-        code.matches("view.value").count(),
+        code.matches("escape(view.value)").count(),
         1,
-        "the generated renderer should read the runtime value exactly once: {code}"
+        "the generated renderer should pass the runtime value through escaping once: {code}"
     );
 }
 

@@ -31,16 +31,18 @@ fn parse_html(html: &str) -> (Vec<Token>, VarCount) {
 
 fn generate_r(tokens: Vec<Token>, fn_name: &str, struct_name: &str, variable_count: u32) -> String {
     let mut current_var = 0;
+    let mut use_module = String::new();
     let mut view_struct = String::new();
     let mut function = String::new();
     if variable_count > 0 {
+        use_module.push_str("use life::util::escape");
         view_struct.push_str(&format!("pub struct {}View<'a> {{", struct_name));
         for num in 0..variable_count {
             view_struct.push_str(&format!("<var{}>: &'a str,", num));
         }
         view_struct.push('}');
         function.push_str(&format!(
-            "pub fn render_{}(out: &mut String, view: {}View) {{",
+            "pub fn render_{}(out: &mut String, view: {}View, escape: bool) {{",
             fn_name.to_ascii_lowercase(),
             struct_name
         ));
@@ -50,7 +52,6 @@ fn generate_r(tokens: Vec<Token>, fn_name: &str, struct_name: &str, variable_cou
             fn_name.to_ascii_lowercase(),
         ));
     }
-
     for token in tokens {
         match token {
             Token::Literal(literal) => {
@@ -59,7 +60,10 @@ fn generate_r(tokens: Vec<Token>, fn_name: &str, struct_name: &str, variable_cou
             }
             Token::Variable(variable) => {
                 view_struct = view_struct.replace(&format!("<var{}>", current_var), &variable);
-                function.push_str(&format!("out.push_str(view.{});", variable));
+                function.push_str(&format!(
+                    "if escape {{out.push_str(escape(view.{}));}} else {{out.push_str(view.{});}}",
+                    &variable, &variable
+                ));
                 current_var += 1;
             }
         }
