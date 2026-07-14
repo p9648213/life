@@ -235,7 +235,7 @@ fn repeated_variable_uses_one_context_field() {
     );
     assert_eq!(
         code.matches("view.title").count(),
-        2,
-        "both variable occurrences should read the shared context field: {code}"
+        4,
+        "each variable occurrence should read the shared context field in both escape branches: {code}"
     );
 }

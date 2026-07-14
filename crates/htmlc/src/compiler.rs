@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 #[derive(Debug)]
 pub enum Token {
     Literal(String),
@@ -11,6 +13,7 @@ fn parse_html(html: &str) -> (Vec<Token>, VarCount) {
     let mut literal_index = 0;
     let mut variable_index = 0;
     let mut variable_count = 0;
+    let mut current_variable = HashSet::new();
     for (index, char) in html.char_indices() {
         if char == '{' {
             let literal = html[literal_index..index].to_string();
@@ -20,9 +23,16 @@ fn parse_html(html: &str) -> (Vec<Token>, VarCount) {
             variable_index = index + 1;
         }
         if char == '}' {
-            tokens.push(Token::Variable(html[variable_index..index].to_string()));
+            let variable = html[variable_index..index].trim();
+            if variable.is_empty() {
+                panic!("Empty variable")
+            }
+            tokens.push(Token::Variable(variable.to_string()));
             literal_index = index + 1;
-            variable_count += 1;
+            if !current_variable.contains(variable) {
+                current_variable.insert(variable);
+                variable_count += 1;
+            }
         }
     }
     tokens.push(Token::Literal(html[literal_index..].to_string()));
@@ -38,7 +48,7 @@ fn generate_r(tokens: Vec<Token>, fn_name: &str, struct_name: &str, variable_cou
         use_module.push_str("use life::util::escape");
         view_struct.push_str(&format!("pub struct {}View<'a> {{", struct_name));
         for num in 0..variable_count {
-            view_struct.push_str(&format!("<var{}>: &'a str,", num));
+            view_struct.push_str(&format!("pub <var{}>: &'a str,", num));
         }
         view_struct.push('}');
         function.push_str(&format!(
