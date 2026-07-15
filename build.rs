@@ -20,7 +20,7 @@ fn compile_template() {
     let mut code = String::new();
     for (full_path, fn_name, struct_name) in items {
         let html_template = std::fs::read_to_string(full_path).unwrap();
-        code.push_str(&generate_code(&html_template, &fn_name, &struct_name));
+        code.push_str(&generate_code(&html_template, &fn_name, &struct_name).unwrap());
         code.push_str("\n\n");
     }
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -41,14 +41,18 @@ fn find_all_file(read_dir: ReadDir, items: &mut Vec<(String, String, String)>) {
                 .unwrap()
                 .0;
             let fn_name = name.replace("/", "_");
-            let struct_name = name.split_once("/").unwrap();
-            let struct_name = format!(
-                "{}{}",
-                capitalize_first(struct_name.0),
-                capitalize_first(struct_name.1)
-            );
+            if let Some(struct_name) = name.split_once("/") {
+                let struct_name = format!(
+                    "{}{}",
+                    capitalize_first(struct_name.0),
+                    capitalize_first(struct_name.1)
+                );
+                items.push((full_path, fn_name, struct_name));
+            } else {
+                let struct_name = name.to_owned();
+                items.push((full_path, fn_name, struct_name));
+            }
 
-            items.push((full_path, fn_name, struct_name));
         } else {
             find_all_file(path.read_dir().unwrap(), items);
         }

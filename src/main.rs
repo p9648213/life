@@ -9,7 +9,6 @@ use life::{
 
 fn home<'buf, 'req>(_: &'req Request<'buf>) -> Response<'req> {
     let mut html = String::new();
-    templates::render_home_index(&mut html);
     Response::html(StatusCode::Ok, &html)
 }
 
