@@ -1,61 +1,32 @@
-# Phase 05 Review Follow-Up
+Updated both Phase 5 documents and added the requested regression coverage.
 
-This is a follow-up list from the first Phase 05 code review. Re-run the checks after completing the remaining items, then ask for another review.
+  Changes:
 
-## 1. Root-Level Template Paths
+  - Added an exact {value:escape:escape} one-call regression in crates/htmlc/tests/htmlc.rs:242.
+  - Made the three filename fixtures dynamic and added multi-template integration coverage in tests/templates.rs:33.
+  - Documented repeated :escape semantics in docs/phases/05-html-rendering.md:221.
+  - Updated all stale findings in docs/review/phase-05-review.md:13.
 
-Status: addressed.
+  Finding 1 is not fully fixed. build.rs:47 now produces:
 
-`templates/index.html` originally caused `build.rs` to panic because the name-generation code expected every template to have a directory component. The current `if let Some(...)` branch supports root-level templates.
+   Template    Render suffix    View suffix
+  ━━━━━━━━━━  ━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━
+   page-2      page2            Page2View
+  ──────────  ───────────────  ─────────────
+   page_2      page_2           Page2View
+  ──────────  ───────────────  ─────────────
+   page2       page2            Page2View
 
-Check again after later changes: `cargo check` must work with both `templates/index.html` and a nested template such as `templates/card/index.html`.
+  Therefore:
 
-## 2. Generated Escape Import
+  - page-2 and page_2 still collide on the view struct.
+  - page-2 and page2 collide on both the function and view struct.
 
-Status: still open.
+  I left your production normalization unchanged and recorded the remaining issue in the review document.
 
-Dynamic templates generate `use life::util::escape_html;`. That path cannot refer to the `life` crate while `life` itself is being compiled. Generate a crate-local path that works from the generated `templates` module, then verify a template containing `{title}` builds successfully.
+  Validation passed:
 
-## 3. Generated-Code Snapshot Tests
-
-Status: addressed.
-
-The `htmlc` snapshots now match the public generated view fields, the `escape_html` import, and `escape_html(...)` calls.
-
-Check again: `cargo test --manifest-path crates/htmlc/Cargo.toml`.
-
-## 4. Malformed Template Errors
-
-Status: tests added; implementation still open.
-
-The compiler now returns `Result<String, TemplateError>`, and tests cover:
-
-- Empty variable: `{}`.
-- Unclosed variable: `{title`.
-- Stray closing brace: `title}`.
-- Invalid variable name: `{display name}`.
-
-The parser must return `Err(...)` for every case. Do not leave `panic!` for the empty-variable case. Add the needed `TemplateError` variants and make all malformed-template tests pass.
-
-## 5. Deeply Nested Template Names
-
-Status: still open.
-
-`templates/card/index.html` works. A dynamic template at `templates/admin/card/index.html` currently generates an invalid Rust name like `AdminCard/indexView`, because the second slash remains in the struct name.
-
-Decide the supported template-path depth. If deeper nesting is supported, convert every path component into valid Rust identifier components. Also consider filenames containing characters Rust identifiers do not allow, such as `user-card.html`.
-
-## 6. Escaping Without a Temporary String
-
-Status: future performance refinement.
-
-`escape_html(text)` returns a newly allocated `String`, and generated code then copies that result into the caller-provided page buffer. Later, change the escaping boundary so it writes escaped text directly into the existing output buffer.
-
-This is not a correctness blocker. Keep the current behavior until the compiler and error handling are correct, then make the allocation improvement and benchmark it.
-
-## Re-Review Commands
-
-```sh
-cargo test --manifest-path crates/htmlc/Cargo.toml
-cargo check
-```
+  - htmlc: 18/18 tests
+  - Root suite: 39/39 tests
+  - cargo check
+  - Both Clippy checks with warnings denied

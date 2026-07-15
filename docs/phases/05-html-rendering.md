@@ -12,7 +12,7 @@ This phase focuses on the compiler and generated render boundary. Multiple appli
 
 ## What to Learn
 
-- Escaping user-controlled text
+- Choosing explicitly between raw and escaped runtime text
 - A minimal template compiler pipeline
 - A generated render API
 - The difference between compile-time template structure and request-time values
@@ -35,14 +35,14 @@ template text
 A tokenizer turns template text into meaningful pieces. For example:
 
 ```html
-<h1>{title}</h1>
+<h1>{title:escape}</h1>
 ```
 
 Can become:
 
 ```text
 Literal("<h1>")
-Variable("title")
+Variable("title", Escape)
 Literal("</h1>")
 ```
 
@@ -50,17 +50,18 @@ Code generation then turns those tokens into Rust code:
 
 ```rust
 out.push_str("<h1>");
-crate::html::escape::text(out, ctx.title);
+crate::util::escape_html(ctx.title, out);
 out.push_str("</h1>");
 ```
 
-For this phase, you do not need parser generators, formal grammars, LLVM, bytecode, optimization passes, proc macro internals, or a full HTML parser. A simple scanner that reads until `{`, reads a variable name until `}`, and repeats is enough to begin.
+For this phase, you do not need parser generators, formal grammars, LLVM, bytecode, optimization passes, proc macro internals, or a full HTML parser. A simple scanner that reads until `{`, reads a variable name and optional colon-separated operations until `}`, and repeats is enough to begin. The only supported operation is `escape`. Repeating it, as in `{title:escape:escape}`, is valid and still selects one escape call; an empty or unknown operation is an error.
 
 The important early errors are practical:
 
 - Opened `{` but never found `}`.
 - Empty variable name.
 - Invalid variable name.
+- Empty or unsupported variable operation.
 - Template generated invalid Rust.
 
 ## Where to Look
@@ -69,15 +70,15 @@ The important early errors are practical:
 
 ## Scope Boundary
 
-One small template is enough to prove this phase. It should contain literal HTML and at least one runtime variable so the generated API and escaping behavior are exercised end to end. Building a full set of pages is not part of this checkpoint.
+One small template is enough to prove this phase. It should contain literal HTML, a raw runtime variable, and an escaped runtime variable. A focused test may call the generated renderer directly; wiring it into a real application handler is outside this checkpoint.
 
 ## Step-by-Step Work
 
-1. Define a tiny template source format. Start with literal HTML plus escaped variables such as `{title}`.
+1. Define a tiny template source format. For this phase, `{title}` emits a raw value, `{title:escape}` emits an HTML-escaped value, and repeated `:escape` operations still escape once.
 2. Write a compiler path that turns template source into Rust code.
 3. Generate render functions that write into a caller-provided output buffer.
-4. Add an HTML escaping helper before rendering runtime text.
-5. Compile and call one dynamic template end to end so generated Rust and the runtime data boundary are checked together.
+4. Add an HTML escaping helper that writes directly into the existing output buffer.
+5. Compile and call one dynamic template from a focused test so generated Rust, raw output, escaped output, and the runtime data boundary are checked together.
 6. Keep compiler and rendering logic separate from routing and TCP code.
 7. Keep the generated render path allocation-conscious from the beginning.
 
@@ -87,7 +88,7 @@ The hot render path should look conceptually like:
 
 ```text
 append literal HTML
-append escaped typed value
+append a raw or escaped typed value according to the compiled operation
 append literal HTML
 ```
 
@@ -106,7 +107,7 @@ For the first compiler, a simple token stream is enough:
 Literal("<h1>")
 EscapedExpr("title")
 Literal("</h1><p>")
-EscapedExpr("message")
+RawExpr("trusted_html")
 Literal("</p>")
 ```
 
@@ -115,9 +116,9 @@ That can generate Rust shaped like:
 ```rust
 pub fn render_home(ctx: &HomeTemplate<'_>, out: &mut String) {
     out.push_str("<h1>");
-    crate::html::escape::text(out, ctx.title);
+    crate::util::escape_html(ctx.title, out);
     out.push_str("</h1><p>");
-    crate::html::escape::text(out, ctx.message);
+    out.push_str(ctx.trusted_html);
     out.push_str("</p>");
 }
 ```
@@ -135,10 +136,10 @@ A simple pipeline is:
 ```text
 templates/home.html
   -> read source
-  -> tokenize literals and {variables}
+  -> tokenize literals, {raw_variables}, and {escaped_variables:escape}
   -> generate Rust render function
   -> write generated file
-  -> include or call generated render code from handlers
+  -> include generated render code and call it from tests or handlers
 ```
 
 The first tokenizer does not need to understand all HTML. It can treat everything outside `{...}` as literal text. That is acceptable because this compiler runs before request handling. Later phases can decide whether to add stricter HTML parsing.
@@ -155,10 +156,10 @@ cargo build
   -> template compiler reads templates
   -> generated Rust is written to OUT_DIR
   -> rustc compiles generated render functions
-  -> request handlers call compiled Rust functions
+  -> tests or request handlers call compiled Rust functions
 ```
 
-At request time, the server should not read template files or compile templates. It should only create context data, allocate or reuse an output buffer, and call the generated render function.
+At request time, the server should not read template files or compile templates. Application code may create context data, allocate or reuse an output buffer, and call the already-generated render function. Phase 05 verifies this render boundary in tests; application wiring can happen separately.
 
 For the first version, it is still reasonable to use a manual generator:
 
@@ -187,7 +188,7 @@ Prefer:
 ```rust
 pub fn render(ctx: &Page<'_>, out: &mut String) {
     out.push_str("<main><h1>");
-    escape_text(out, ctx.title);
+    crate::util::escape_html(ctx.title, out);
     out.push_str("</h1></main>");
 }
 ```
@@ -202,7 +203,8 @@ The first version should:
 
 - Render into one caller-owned `String`.
 - Append large literal chunks when possible.
-- Escape dynamic text directly into the output buffer.
+- Append raw dynamic text directly into the output buffer when the template requests raw output.
+- Escape marked dynamic text directly into the output buffer without a temporary `String`.
 - Avoid building an intermediate DOM tree.
 - Avoid allocating a new `String` for every element.
 - Allow rough capacity planning at the handler or generated-template boundary.
@@ -218,6 +220,18 @@ The capacity estimate does not need to be exact. Its job is to reduce reallocati
 
 ## Escaping
 
+Escaping is selected per variable occurrence in the template:
+
+```text
+{name}                 appends name as raw text
+{name:escape}          HTML-escapes name into the output buffer
+{name:escape:escape}   is valid and produces the same single escape call
+```
+
+Repeated `:escape` operations are duplicate-tolerant syntax; they do not escape the already-escaped output a second time. Empty operations such as `{name:}` and unknown operations return a compiler error.
+
+Use raw variables only for content that is already trusted and intended to contain HTML. Any user-controlled or otherwise untrusted value must use the `:escape` operation.
+
 At minimum, escape these characters in text content:
 
 ```text
@@ -225,24 +239,25 @@ At minimum, escape these characters in text content:
 <  becomes &lt;
 >  becomes &gt;
 "  becomes &quot;
-'  becomes &#39;
+'  becomes &#x27;
 ```
 
-Do not display raw user input as HTML.
+Do not pass raw user input through an unescaped variable.
 
 ## Experiments
 
-Submit sample text like:
+Render a template containing `{message:escape}` with sample text like:
 
 ```html
 <script>alert("xss")</script>
 ```
 
-When rendered, it should be escaped as text rather than emitted as raw markup.
+The escaped occurrence should be emitted as text. A separate `{trusted_html}` occurrence should remain raw so both operations are verified.
 
 ## Questions to Answer
 
 - Why does server-generated HTML need escaping?
+- When is it valid to select raw output instead of `:escape`?
 - What is the difference between HTML text and an HTML attribute?
 - What work happens before request handling in your compiler?
 - What generated code still runs at request time?
@@ -254,10 +269,10 @@ When rendered, it should be escaped as text rather than emitted as raw markup.
 
 You are done when:
 
-- The compiler accepts literal HTML and the documented `{name}` variable syntax.
-- Unmatched, empty, and invalid variables return useful compiler errors.
-- At least one dynamic template compiles into valid Rust and can be called with request-time data.
-- Runtime text is HTML-escaped in the generated output.
+- The compiler accepts literal HTML, raw `{name}` variables, escaped `{name:escape}` variables, and repeated `:escape` operations that generate one escape call.
+- Unmatched, empty, and invalid variables, plus empty or unsupported operations, return useful compiler errors.
+- At least one dynamic template compiles into valid Rust and is called from a focused test with runtime data.
+- The generated renderer appends raw variables directly and escapes `:escape` variables into the same output buffer.
 - Template source is compiled before request handling.
 - Generated render code does not parse template source or replace placeholders during request handling.
 - Generated templates render into an explicit output buffer or equivalent response body builder.

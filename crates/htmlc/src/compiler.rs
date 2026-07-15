@@ -2,13 +2,14 @@ use std::collections::HashSet;
 
 use crate::{error::TemplateError, util::is_valid_rust_variable_name};
 
+type VarCount = u32;
+type Escape = bool;
+
 #[derive(Debug)]
 pub enum Token {
     Literal(String),
-    Variable(String),
+    Variable(String, Escape),
 }
-
-type VarCount = u32;
 
 fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
     let mut tokens = vec![];
@@ -17,8 +18,8 @@ fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
     let mut variable_count = 0;
     let mut current_variable = HashSet::new();
     let mut open_variable = false;
-    for (index, char) in html.char_indices() {
-        if char == '{' {
+    for (index, ch) in html.char_indices() {
+        if ch == '{' {
             if open_variable {
                 return Err(TemplateError::UnCloseVariable);
             }
@@ -29,18 +30,31 @@ fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
             }
             variable_index = index + 1;
         }
-        if char == '}' {
+        if ch == '}' {
             if !open_variable {
                 return Err(TemplateError::MissingOpenVariable);
             }
-            let variable = html[variable_index..index].trim();
+            let mut variable = html[variable_index..index].trim();
             if variable.is_empty() {
                 return Err(TemplateError::EmptyVariable);
             }
             if !is_valid_rust_variable_name(variable) {
                 return Err(TemplateError::InvalidVariable);
             }
-            tokens.push(Token::Variable(variable.to_string()));
+            if variable.contains(":") {
+                let mut var_part = variable.split(":");
+                variable = var_part.next().unwrap();
+                let mut escape = false;
+                for operation in var_part {
+                    match operation {
+                        "escape" => escape = true,
+                        _ => return Err(TemplateError::InvalidOperation),
+                    }
+                }
+                tokens.push(Token::Variable(variable.to_string(), escape));
+            } else {
+                tokens.push(Token::Variable(variable.to_string(), false));
+            }
             literal_index = index + 1;
             if !current_variable.contains(variable) {
                 current_variable.insert(variable);
@@ -57,19 +71,18 @@ fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
 }
 
 fn generate_r(tokens: Vec<Token>, fn_name: &str, struct_name: &str, variable_count: u32) -> String {
-    let mut current_var = 0;
-    let mut use_module = String::new();
+    let mut var_pos = 0;
+    let mut current_var = HashSet::new();
     let mut view_struct = String::new();
     let mut function = String::new();
     if variable_count > 0 {
-        use_module.push_str("use crate::util::escape_html;");
         view_struct.push_str(&format!("pub struct {}View<'a> {{", struct_name));
         for num in 0..variable_count {
             view_struct.push_str(&format!("pub <var{}>: &'a str,", num));
         }
         view_struct.push('}');
         function.push_str(&format!(
-            "pub fn render_{}(out: &mut String, view: {}View, escape: bool) {{",
+            "pub fn render_{}(out: &mut String, view: {}View) {{",
             fn_name.to_ascii_lowercase(),
             struct_name
         ));
@@ -85,18 +98,25 @@ fn generate_r(tokens: Vec<Token>, fn_name: &str, struct_name: &str, variable_cou
                 let literal = format!("{:?}", literal);
                 function.push_str(&format!(r#"out.push_str({});"#, literal))
             }
-            Token::Variable(variable) => {
-                view_struct = view_struct.replace(&format!("<var{}>", current_var), &variable);
-                function.push_str(&format!(
-                    "if escape {{out.push_str(escape_html(view.{}));}} else {{out.push_str(view.{});}}",
-                    &variable, &variable
-                ));
-                current_var += 1;
+            Token::Variable(variable, escape) => {
+                if !current_var.contains(&variable) {
+                    view_struct = view_struct.replace(&format!("<var{}>", var_pos), &variable);
+                    var_pos += 1;
+                }
+                if escape {
+                    function.push_str(&format!(
+                        "crate::util::escape_html(view.{}, out);",
+                        variable
+                    ));
+                } else {
+                    function.push_str(&format!("out.push_str(view.{});", variable));
+                }
+                current_var.insert(variable);
             }
         }
     }
     function.push('}');
-    format!("{}{}{}", use_module, view_struct, function)
+    format!("{}{}", view_struct, function)
 }
 
 pub fn generate_code(

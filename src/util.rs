@@ -1,5 +1,4 @@
-pub fn escape_html(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
+pub fn escape_html(text: &str, out: &mut String) {
     for ch in text.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
@@ -10,5 +9,4 @@ pub fn escape_html(text: &str) -> String {
             _ => out.push(ch),
         }
     }
-    out
 }

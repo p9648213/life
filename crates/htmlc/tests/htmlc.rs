@@ -32,14 +32,13 @@ fn renders_a_single_variable_between_literal_fragments() {
     let code = generate_code("<div><span>{name}</span></div>", "test", "Test")
         .expect("valid template should compile");
     let expected = r#"
-        use crate::util::escape_html;
         pub struct TestView<'a> {
             pub name: &'a str,
         } 
         
-        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
+        pub fn render_test(out: &mut String, view: TestView) {
             out.push_str("<div><span>");
-            if escape {out.push_str(escape_html(view.name));} else {out.push_str(view.name);}
+            out.push_str(view.name);
             out.push_str("</span></div>");
         }
         "#;
@@ -54,14 +53,13 @@ fn renders_a_variable_after_multiple_static_elements() {
     let code = generate_code("<div></div><span>{name}</span>", "test", "Test")
         .expect("valid template should compile");
     let expected = r#"
-        use crate::util::escape_html;
         pub struct TestView<'a> {
             pub name: &'a str,
         } 
         
-        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
+        pub fn render_test(out: &mut String, view: TestView) {
             out.push_str("<div></div><span>");
-            if escape {out.push_str(escape_html(view.name));} else {out.push_str(view.name);}
+            out.push_str(view.name);
             out.push_str("</span>");
         }
         "#;
@@ -77,17 +75,16 @@ fn renders_multiple_variables_separated_by_literals() {
     let code = generate_code("<div>{age}</div><span>{name}</span>", "test", "Test")
         .expect("valid template should compile");
     let expected = r#"
-        use crate::util::escape_html;
         pub struct TestView<'a> {
             pub age: &'a str,
             pub name: &'a str,
         }
         
-        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
+        pub fn render_test(out: &mut String, view: TestView) {
             out.push_str("<div>");
-            if escape {out.push_str(escape_html(view.age));} else {out.push_str(view.age);}
+            out.push_str(view.age);
             out.push_str("</div><span>");
-            if escape {out.push_str(escape_html(view.name));} else {out.push_str(view.name);}
+            out.push_str(view.name);
             out.push_str("</span>");
         }
         "#;
@@ -103,16 +100,15 @@ fn renders_adjacent_variables_in_their_original_order() {
     let code = generate_code("<div>{age}{name}</div>", "test", "Test")
         .expect("valid template should compile");
     let expected = r#"
-        use crate::util::escape_html;
         pub struct TestView<'a> {
             pub age: &'a str,
             pub name: &'a str,
         }
         
-        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
+        pub fn render_test(out: &mut String, view: TestView) {
             out.push_str("<div>");
-            if escape {out.push_str(escape_html(view.age));} else {out.push_str(view.age);}
-            if escape {out.push_str(escape_html(view.name));} else {out.push_str(view.name);}
+            out.push_str(view.age);
+            out.push_str(view.name);
             out.push_str("</div>");
         }
         "#;
@@ -124,7 +120,7 @@ fn renders_adjacent_variables_in_their_original_order() {
 }
 
 #[test]
-fn escapes_quotes_in_html_attributes() {
+fn preserves_quotes_in_literal_html_attributes() {
     let code = generate_code(
         r#"<div class="container">{age}{name}</div>"#,
         "test",
@@ -132,16 +128,15 @@ fn escapes_quotes_in_html_attributes() {
     )
     .expect("valid template should compile");
     let expected = r#"
-        use crate::util::escape_html;
         pub struct TestView<'a> {
             pub age: &'a str,
             pub name: &'a str,
         }
         
-        pub fn render_test(out: &mut String, view: TestView, escape: bool) {
+        pub fn render_test(out: &mut String, view: TestView) {
             out.push_str("<div class=\"container\">");
-            if escape {out.push_str(escape_html(view.age));} else {out.push_str(view.age);}
-            if escape {out.push_str(escape_html(view.name));} else {out.push_str(view.name);}
+            out.push_str(view.age);
+            out.push_str(view.name);
             out.push_str("</div>");
         }
         "#;
@@ -157,14 +152,13 @@ fn escapes_quotes_backslashes_and_newlines_in_literal_html() {
         .expect("valid template should compile");
 
     let expected = r#"
-        use crate::util::escape_html;
         pub struct LinkView<'a> {
             pub label: &'a str,
         }
 
-        pub fn render_link(out: &mut String, view: LinkView, escape: bool) {
+        pub fn render_link(out: &mut String, view: LinkView) {
             out.push_str("<a href=\"C:\\\\docs\">");
-            if escape {out.push_str(escape_html(view.label));} else {out.push_str(view.label);}
+            out.push_str(view.label);
             out.push_str("</a>\n");
         }
         "#;
@@ -196,14 +190,13 @@ fn preserves_unicode_html_around_a_variable() {
     let code = generate_code("<p>Chào, {name} 👋</p>", "greeting", "Greeting")
         .expect("valid template should compile");
     let expected = r#"
-        use crate::util::escape_html;
         pub struct GreetingView<'a> {
             pub name: &'a str,
         }
 
-        pub fn render_greeting(out: &mut String, view: GreetingView, escape: bool) {
+        pub fn render_greeting(out: &mut String, view: GreetingView) {
             out.push_str("<p>Chào, ");
-            if escape {out.push_str(escape_html(view.name));} else {out.push_str(view.name);}
+            out.push_str(view.name);
             out.push_str(" 👋</p>");
         }
         "#;
@@ -226,18 +219,48 @@ fn preserves_meaningful_whitespace_in_literal_html() {
 }
 
 #[test]
-fn conditionally_escapes_runtime_values() {
-    let code = generate_code("<p>{value}</p>", "message", "Message")
+fn applies_escape_operation_per_variable_occurrence() {
+    let code = generate_code("<p>{value:escape}{value}</p>", "message", "Message")
         .expect("valid template should compile");
 
     assert!(
-        code.contains("if escape {out.push_str(escape_html(view.value));} else {out.push_str(view.value);}"),
-        "generated renderer must escape runtime values when requested: {code}"
+        code.contains("crate::util::escape_html(view.value, out);"),
+        "the escape operation must write the escaped value into the output buffer: {code}"
+    );
+    assert!(
+        code.contains("out.push_str(view.value);"),
+        "a variable without the escape operation must append the raw value: {code}"
     );
     assert_eq!(
-        code.matches("escape_html(view.value)").count(),
+        code.matches("value: &'a str").count(),
         1,
-        "the generated renderer should pass the runtime value through escaping once: {code}"
+        "different operations on the same variable must share one context field: {code}"
+    );
+}
+
+#[test]
+fn repeated_escape_operation_generates_one_escape_call() {
+    let code = generate_code(
+        "<p>{value:escape:escape}</p>",
+        "message",
+        "Message",
+    )
+    .expect("repeating the escape operation is valid");
+
+    assert_eq!(
+        code.matches("crate::util::escape_html(view.value, out);")
+            .count(),
+        1,
+        "repeating :escape must still generate exactly one escape call: {code}"
+    );
+    assert_eq!(
+        code.matches("value: &'a str").count(),
+        1,
+        "repeating :escape must still generate exactly one context field: {code}"
+    );
+    assert!(
+        !code.contains("out.push_str(view.value);"),
+        "an escaped occurrence must not also append the raw value: {code}"
     );
 }
 
@@ -253,8 +276,8 @@ fn repeated_variable_uses_one_context_field() {
     );
     assert_eq!(
         code.matches("view.title").count(),
-        4,
-        "each variable occurrence should read the shared context field in both escape branches: {code}"
+        2,
+        "each variable occurrence should read the shared context field once: {code}"
     );
 }
 
@@ -269,14 +292,20 @@ fn rejects_an_empty_variable() {
 fn rejects_an_unclosed_variable() {
     let result = generate_code("<p>{title</p>", "message", "Message");
 
-    assert!(result.is_err(), "an opening brace must have a closing brace");
+    assert!(
+        result.is_err(),
+        "an opening brace must have a closing brace"
+    );
 }
 
 #[test]
 fn rejects_a_stray_closing_brace() {
     let result = generate_code("<p>title}</p>", "message", "Message");
 
-    assert!(result.is_err(), "a closing brace must follow an opening brace");
+    assert!(
+        result.is_err(),
+        "a closing brace must follow an opening brace"
+    );
 }
 
 #[test]
@@ -287,4 +316,18 @@ fn rejects_an_invalid_variable_name() {
         result.is_err(),
         "variable names must be valid Rust field identifiers"
     );
+}
+
+#[test]
+fn rejects_an_unknown_variable_operation() {
+    let result = generate_code("<p>{value:escpae}</p>", "message", "Message");
+
+    assert!(matches!(result, Err(TemplateError::InvalidOperation)));
+}
+
+#[test]
+fn rejects_an_empty_variable_operation() {
+    let result = generate_code("<p>{value:}</p>", "message", "Message");
+
+    assert!(matches!(result, Err(TemplateError::InvalidOperation)));
 }

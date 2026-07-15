@@ -4,11 +4,10 @@ use life::{
         response::{Response, StatusCode},
     },
     server::Server,
-    templates,
 };
 
 fn home<'buf, 'req>(_: &'req Request<'buf>) -> Response<'req> {
-    let mut html = String::new();
+    let html = String::new();
     Response::html(StatusCode::Ok, &html)
 }
 

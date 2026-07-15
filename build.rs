@@ -16,7 +16,7 @@ fn compile_template() {
     let templates_dir = manifest_dir.join("templates");
     let templates = fs::read_dir(&templates_dir).unwrap();
     let mut items = vec![];
-    find_all_file(templates, &mut items);
+    find_template(templates, &mut items);
     let mut code = String::new();
     for (full_path, fn_name, struct_name) in items {
         let html_template = std::fs::read_to_string(full_path).unwrap();
@@ -27,34 +27,46 @@ fn compile_template() {
     std::fs::write(out.join("templates.rs"), code).unwrap();
 }
 
-fn find_all_file(read_dir: ReadDir, items: &mut Vec<(String, String, String)>) {
+fn find_template(read_dir: ReadDir, items: &mut Vec<(String, String, String)>) {
     for item in read_dir {
         let entry = item.unwrap();
         let path = entry.path();
-        if entry.file_type().unwrap().is_file() && path.extension().unwrap() == "html" {
+        let file_type = entry.file_type().unwrap();
+        if file_type.is_file()
+            && path
+                .extension()
+                .is_some_and(|extension| extension == "html")
+        {
             let full_path = path.display().to_string();
             let name = full_path
                 .split_once("/templates/")
                 .unwrap()
                 .1
-                .split_once(".html")
-                .unwrap()
-                .0;
-            let fn_name = name.replace("/", "_");
-            if let Some(struct_name) = name.split_once("/") {
-                let struct_name = format!(
-                    "{}{}",
-                    capitalize_first(struct_name.0),
-                    capitalize_first(struct_name.1)
-                );
-                items.push((full_path, fn_name, struct_name));
-            } else {
-                let struct_name = name.to_owned();
-                items.push((full_path, fn_name, struct_name));
+                .strip_suffix(".html")
+                .unwrap();
+            let fn_name = name.replace("/", "_").replace("-", "");
+            let filter_struct_name: String = name
+                .chars()
+                .filter_map(|ch| {
+                    if ch.is_whitespace() || ch == '-' {
+                        None
+                    } else if ch.is_alphabetic() || ch.is_alphanumeric() || ch == '/' {
+                        Some(ch)
+                    } else {
+                        Some('/')
+                    }
+                })
+                .collect();
+            let mut struct_name = String::new();
+            for name_part in filter_struct_name
+                .split('/')
+                .filter(|part| !part.is_empty())
+            {
+                struct_name.push_str(&capitalize_first(name_part));
             }
-
-        } else {
-            find_all_file(path.read_dir().unwrap(), items);
+            items.push((full_path, fn_name, struct_name));
+        } else if file_type.is_dir() {
+            find_template(path.read_dir().unwrap(), items);
         }
     }
 }
