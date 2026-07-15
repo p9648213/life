@@ -240,12 +240,8 @@ fn applies_escape_operation_per_variable_occurrence() {
 
 #[test]
 fn repeated_escape_operation_generates_one_escape_call() {
-    let code = generate_code(
-        "<p>{value:escape:escape}</p>",
-        "message",
-        "Message",
-    )
-    .expect("repeating the escape operation is valid");
+    let code = generate_code("<p>{value:escape:escape}</p>", "message", "Message")
+        .expect("repeating the escape operation is valid");
 
     assert_eq!(
         code.matches("crate::util::escape_html(view.value, out);")

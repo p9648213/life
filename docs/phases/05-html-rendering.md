@@ -146,6 +146,34 @@ The first tokenizer does not need to understand all HTML. It can treat everythin
 
 Keep generated code boring. Boring generated code is easier to inspect, test, profile, and replace.
 
+## Template Paths and Generated Names
+
+Template paths become generated Rust function and view names. Each path component must start with a lowercase ASCII letter or `_`; the remaining characters may be lowercase ASCII letters, digits, or `_`.
+
+Valid:
+
+```text
+templates/admin/card_2/page_2.html
+```
+
+This can generate names shaped like:
+
+```text
+render_admin_card_2_page_2
+AdminCard2Page2View
+```
+
+Invalid:
+
+```text
+templates/admin/card-2/page_2.html
+templates/admin/2card/page_2.html
+```
+
+The `-` is not valid in a Rust identifier, and a component cannot start with a digit. The build script rejects unsupported characters; if a path still produces invalid generated Rust, let the Rust compiler report its normal diagnostic.
+
+The current view-name conversion removes underscores. Avoid placing both `page2.html` and `page_2.html` in the same template directory, because they can generate the same view struct name and Rust will report the duplicate definition during compilation.
+
 ## When the Compiler Runs
 
 The target model is build-time compilation:
@@ -281,4 +309,4 @@ You are done when:
 
 ## Continue
 
-After this phase, continue with [Phase 05B: Template Compiler Expansion](05b-template-compiler-expansion.md).
+After this phase, continue with [Phase 06: Form Parsing](06-form-parsing.md).

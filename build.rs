@@ -37,34 +37,29 @@ fn find_template(read_dir: ReadDir, items: &mut Vec<(String, String, String)>) {
                 .extension()
                 .is_some_and(|extension| extension == "html")
         {
-            let full_path = path.display().to_string();
+            let full_path = path.to_str().unwrap();
             let name = full_path
                 .split_once("/templates/")
-                .unwrap()
-                .1
-                .strip_suffix(".html")
+                .and_then(|(_, path)| path.strip_suffix(".html"))
                 .unwrap();
-            let fn_name = name.replace("/", "_").replace("-", "");
-            let filter_struct_name: String = name
-                .chars()
-                .filter_map(|ch| {
-                    if ch.is_whitespace() || ch == '-' {
-                        None
-                    } else if ch.is_alphabetic() || ch.is_alphanumeric() || ch == '/' {
-                        Some(ch)
-                    } else {
-                        Some('/')
-                    }
-                })
-                .collect();
+            if let Some(ch) = name.chars().find(|ch| {
+                !ch.is_ascii_lowercase() && !ch.is_ascii_digit() && *ch != '_' && *ch != '/'
+            }) {
+                panic!(
+                    "Unsupported template path `{name}`: invalid character `{ch}`; \
+         each path component may contain only lowercase ASCII letters, digits, and underscores"
+                );
+            }
+            let fn_name = name.replace("/", "_");
             let mut struct_name = String::new();
+            let filter_struct_name = name.replace("_", "");
             for name_part in filter_struct_name
                 .split('/')
                 .filter(|part| !part.is_empty())
             {
                 struct_name.push_str(&capitalize_first(name_part));
             }
-            items.push((full_path, fn_name, struct_name));
+            items.push((full_path.to_owned(), fn_name, struct_name));
         } else if file_type.is_dir() {
             find_template(path.read_dir().unwrap(), items);
         }
