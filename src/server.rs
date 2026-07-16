@@ -26,7 +26,7 @@ impl<'server> Server<'server> {
         }
     }
 
-    pub fn handle_client(&self, mut stream: TcpStream) -> std::io::Result<()> {
+    pub fn handle_tcp_buffer(&self, mut stream: TcpStream) -> std::io::Result<()> {
         let mut buffer = [0u8; 65536];
         let bytes_read = stream.read(&mut buffer)?;
 
@@ -57,7 +57,7 @@ impl<'server> Server<'server> {
     pub fn run(&self, address: &str) -> std::io::Result<()> {
         let listener = TcpListener::bind(address)?;
         for stream in listener.incoming() {
-            self.handle_client(stream?)?;
+            self.handle_tcp_buffer(stream?)?;
         }
         Ok(())
     }

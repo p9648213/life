@@ -6,7 +6,7 @@ You are building the foundation for a real template compiler. The long-term dire
 
 For this phase, "compiled template engine" means the request-time render path must not scan template text, find placeholders, or perform string replacement. The basic version should compile a tiny template format into Rust code that writes directly into a caller-provided output buffer.
 
-Keep the compiler small. It does not need loops, conditionals, inheritance, includes, macros, or a complete HTML parser yet. The foundation matters more than features: the generated render code should already have the shape you want to keep later.
+Keep the compiler small. It does not need loops, conditionals, inheritance, includes, macros, or a complete HTML parser yet. The foundation matters more than features: the generated render code should already have the shape you want to keep later. Add a missing capability through the optional [Phase 05B](05b-template-compiler-expansion.md) only when a real template requires it.
 
 This phase focuses on the compiler and generated render boundary. Multiple application pages, reusable layouts, forms, navigation, styling, and a complete browser flow can be added after the compiler foundation is solid.
 
@@ -305,8 +305,10 @@ You are done when:
 - Generated render code does not parse template source or replace placeholders during request handling.
 - Generated templates render into an explicit output buffer or equivalent response body builder.
 - Compiler and rendering helpers are separate from routing and TCP code.
-- The basic compiler shape can be extended in the continuation phase without changing the handler/render boundary.
+- The compiler can be extended through optional [Phase 05B](05b-template-compiler-expansion.md) while preserving the build-time/request-time split and caller-owned output buffer.
 
 ## Continue
 
-After this phase, continue with [Phase 06: Form Parsing](06-form-parsing.md).
+The normal next step is [Phase 06A: Minimal Request Body Accumulation](06a-minimal-request-body-accumulation.md).
+
+Whenever a later phase exposes a concrete template limitation, return to optional [Phase 05B: Need-Driven Template Compiler Expansion](05b-template-compiler-expansion.md), add exactly one capability, and then resume the phase that needed it.

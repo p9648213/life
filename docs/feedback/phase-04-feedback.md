@@ -38,7 +38,7 @@ I verified that:
 
 ## Things To Improve Later
 
-- `handle_client` still performs one read into a fixed 512-byte buffer. This is acceptable for the current phase, but real request reading needs a loop, size limits, and clearer handling for partial reads.
+- `handle_client` still performs one read into a fixed buffer. This is acceptable for the current phase. Phase 06A will add the minimal loop needed for partial requests; Phase 16 will add deliberate limits and connection behavior.
 - The router currently stores function pointers. That is simple and good for learning, but later application state may require a more flexible handler shape.
 - `Server` exposes `routes` publicly. This is fine for now, but later you may want route registration methods on `Server` so callers do not depend directly on its internal fields.
 - Query parsing is intentionally small. The current behavior is tested, but future phases may need a dedicated query representation if repeated keys, decoding, or malformed encodings become important.

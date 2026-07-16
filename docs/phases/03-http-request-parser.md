@@ -79,7 +79,7 @@ name=Rust&message=Hello+World
    - version
 6. Parse each following header line into name and value.
 7. Find `Content-Length` if present.
-8. Read body bytes according to that length.
+8. Validate the already-received body bytes against that length.
 9. Return a structured request type.
 10. Return an error if required pieces are missing.
 
@@ -97,15 +97,15 @@ parse_request(bytes):
 
 ## Important Design Choice
 
-At first, it is acceptable to read into a fixed-size buffer and parse what you got. But you must understand the weakness:
+At first, it is acceptable to read into a fixed-size buffer and parse what one `read` returned. But you must understand the weakness:
 
 - TCP is a stream.
 - One `read` call is not guaranteed to contain the full request.
 - Large or slow requests may arrive in pieces.
 
-Later, phase 16 will improve this.
+Phase 06A will remove this immediate single-read limitation just enough to accumulate one complete fixed-length request before parsing. Phase 16 will later harden that reader with deliberate limits, timeouts, and connection behavior.
 
-For now, document this limitation.
+For Phase 03, document the limitation and keep the parser focused on validating a complete byte slice.
 
 ## Experiments
 

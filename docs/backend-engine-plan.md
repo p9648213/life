@@ -55,7 +55,7 @@ Phases 00 through 03 already created the TCP, response, and request-parser found
 
 Phase 04 should create a router that consumes parsed request data and returns a `Response` without touching `TcpStream`.
 
-Phase 05 and Phase 06 should add HTML/form support as adapters. They should not decide the final product domain.
+Phase 05 should add the HTML rendering boundary. Phase 05B is an optional, repeatable compiler-expansion track entered only for one concrete template need; it never blocks the main roadmap. Phase 06A should add the minimal connection-reading prerequisite for reliable request bodies, and Phase 06B should add form decoding as an adapter. These phases should not decide the final product domain.
 
 Phase 07 should introduce an application state boundary, not a hard-coded to-do or notes domain.
 
@@ -67,9 +67,9 @@ By the end of this milestone, bad client input should become a reasonable HTTP r
 
 ### Milestone C: Serious Request Handling
 
-Improve the read loop, request size limits, body limits, timeout behavior, `Host` handling, duplicate header policy, and connection-close rules.
+Harden the provisional Phase 06A read loop with request size limits, body limits, timeout behavior, `Host` handling, duplicate header policy, and connection-close rules.
 
-This is where the current 256-byte single-read limitation must be removed.
+This is where the temporary total-request capacity and one-request connection behavior become deliberate protocol policies. Phase 06A removes the immediate single-read failure; this milestone makes that reader substantially less fragile.
 
 ### Milestone D: App Integration
 

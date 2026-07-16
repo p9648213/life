@@ -49,8 +49,10 @@ I verified that:
 - Generated view fields are currently borrowed `&str` values. Future phases may need typed fields, nested paths, conditionals, loops, layouts, includes, and source-mapped compiler diagnostics.
 - The phase verifies rendering through a focused integration test. Wiring generated templates into real application handlers can remain separate until the application domain is chosen.
 
-## Ready For Phase 06
+Use [Phase 05B: Need-Driven Template Compiler Expansion](../phases/05b-template-compiler-expansion.md) only when one of those deferred compiler capabilities is required by a concrete template. Phase 05B is repeatable and is not a prerequisite for Phase 06A.
 
-You are ready to move on to Phase 06: Form Parsing.
+## Ready For Phase 06A
 
-Carry forward the same separation of work: parse and validate request input at a clear boundary, represent valid data explicitly, and keep handlers focused on application decisions rather than low-level string processing.
+You are ready to move on to [Phase 06A: Minimal Request Body Accumulation](../phases/06a-minimal-request-body-accumulation.md), followed by Phase 06B for form parsing.
+
+Carry forward the same separation of work: first make the connection layer deliver one complete request, then parse and validate form input at a separate boundary so handlers remain focused on application decisions.

@@ -33,7 +33,7 @@ I verified that:
 
 ## Things To Improve Later
 
-- `handle_client` still performs one read into a 256-byte buffer. A valid request can arrive partially or exceed the buffer and be treated as malformed. This is an intentional limitation until Phase 16.
+- `handle_client` still performs one read into a fixed buffer. A valid request can arrive partially and be treated as malformed. This is intentional until Phase 06A adds minimal accumulation; Phase 16 will later harden it with limits, timeouts, and explicit connection behavior.
 - The parser currently uses an empty header slice to detect several malformed conditions. Later, separating “separator not found,” “headers incomplete,” and “header invalid” would produce more precise errors.
 - Duplicate `Content-Length` headers are not rejected. If different components choose different values, request boundaries can become ambiguous. Rejecting duplicates is useful future hardening.
 - A `HashMap` keeps only one value for duplicate header names. Some headers may legally appear more than once, so a later parser may need a different representation.
