@@ -1,5 +1,5 @@
 use std::{
-    io::{Read, Write},
+    io::{Error, Read, Write},
     net::{TcpListener, TcpStream},
 };
 
@@ -26,19 +26,15 @@ impl<'server> Server<'server> {
         }
     }
 
+    pub fn read_tcp_stream(mut stream: &TcpStream) -> std::io::Result<Vec<u8>> {
+        let mut data = Vec::new();
+        stream.read_to_end(&mut data)?;
+        Ok(data)
+    }
+
     pub fn handle_tcp_buffer(&self, mut stream: TcpStream) -> std::io::Result<()> {
-        let mut buffer = [0u8; 65536];
-        let bytes_read = stream.read(&mut buffer)?;
-
-        if bytes_read == 0 {
-            return Ok(());
-        }
-
-        let data = &buffer[..bytes_read];
-
-        println!("{}", str::from_utf8(data).unwrap());
-
-        let request = match Request::parse(data) {
+        let bytes_slice = Self::read_tcp_stream(&stream)?;
+        let request = match Request::parse(&bytes_slice) {
             Ok(request) => request,
             Err(error) => {
                 eprintln!("Bad request: {error}");
