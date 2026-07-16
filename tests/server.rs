@@ -17,7 +17,7 @@ fn hello_world<'a>(_: &'a Request<'_>) -> Response<'a> {
 }
 
 #[test]
-fn handle_tcp_buffer_writes_http_response_over_tcp() {
+fn handle_client_writes_http_response_over_tcp() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let mut app = Server::new();
@@ -25,7 +25,7 @@ fn handle_tcp_buffer_writes_http_response_over_tcp() {
 
     let server = thread::spawn(move || {
         let (stream, _) = listener.accept().unwrap();
-        app.handle_tcp_buffer(stream).unwrap();
+        app.handle_client(stream).unwrap();
     });
 
     let mut client = TcpStream::connect(address).unwrap();
@@ -43,14 +43,14 @@ fn handle_tcp_buffer_writes_http_response_over_tcp() {
 }
 
 #[test]
-fn handle_tcp_buffer_returns_400_for_malformed_request() {
+fn handle_client_returns_400_for_malformed_request() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let app = Server::new();
 
     let server = thread::spawn(move || {
         let (stream, _) = listener.accept().unwrap();
-        app.handle_tcp_buffer(stream).unwrap();
+        app.handle_client(stream).unwrap();
     });
 
     let mut client = TcpStream::connect(address).unwrap();

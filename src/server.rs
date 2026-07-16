@@ -32,7 +32,7 @@ impl<'server> Server<'server> {
         Ok(data)
     }
 
-    pub fn handle_tcp_buffer(&self, mut stream: TcpStream) -> std::io::Result<()> {
+    pub fn handle_client(&self, mut stream: TcpStream) -> std::io::Result<()> {
         let bytes_slice = Self::read_tcp_stream(&stream)?;
         let request = match Request::parse(&bytes_slice) {
             Ok(request) => request,
@@ -53,7 +53,7 @@ impl<'server> Server<'server> {
     pub fn run(&self, address: &str) -> std::io::Result<()> {
         let listener = TcpListener::bind(address)?;
         for stream in listener.incoming() {
-            self.handle_tcp_buffer(stream?)?;
+            self.handle_client(stream?)?;
         }
         Ok(())
     }
