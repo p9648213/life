@@ -4,7 +4,7 @@ use life::{
         response::{Response, StatusCode},
     },
     server::Server,
-    templates
+    templates,
 };
 
 fn home<'buf, 'req>(_: &'req Request<'buf>) -> Response<'req> {

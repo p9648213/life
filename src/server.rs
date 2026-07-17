@@ -52,14 +52,16 @@ impl<'server> Server<'server> {
             {
                 data.extend_from_slice(&buffer[..(expected_length - data.len())]);
             } else {
+                let remaining = MAX_REQUEST_BYTES - data.len();
                 let bytes_after_extend = data
                     .len()
                     .checked_add(bytes_read)
                     .ok_or_else(|| Error::other("Request size overflow"))?;
                 if bytes_after_extend > MAX_REQUEST_BYTES {
-                    return Err(Error::other("Request size overflow."));
+                    data.extend_from_slice(&buffer[..remaining]);
+                } else {
+                    data.extend_from_slice(&buffer[..bytes_read]);
                 }
-                data.extend_from_slice(&buffer[..bytes_read]);
             }
             if expected_length.is_none() {
                 let mut index = 0;
@@ -67,7 +69,10 @@ impl<'server> Server<'server> {
                     if data.get(index..index + 4) == Some(&[13, 10, 13, 10]) {
                         let header = str::from_utf8(&data[..index])
                             .map_err(|err| Error::other(err.to_string()))?;
-                        for line in header.lines() {
+                        for (line_index, line) in header.lines().enumerate() {
+                            if line_index == 0 {
+                                continue;
+                            }
                             if let Some((name, value)) = line.split_once(":")
                                 && name.trim().eq_ignore_ascii_case("Content-Length")
                             {
