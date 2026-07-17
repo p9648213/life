@@ -158,7 +158,7 @@ fn rejects_body_shorter_than_content_length() {
 }
 
 #[test]
-fn rejects_surplus_body_bytes_because_pipelining_is_unsupported() {
+fn rejects_body_longer_than_content_length() {
     let result = Request::parse(b"POST / HTTP/1.1\r\nContent-Length: 3\r\n\r\nabcdef");
 
     assert!(result.is_err());

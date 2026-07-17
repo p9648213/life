@@ -10,6 +10,7 @@ use crate::http::{
 };
 
 const MAX_REQUEST_BYTES: usize = 64 * 1024;
+const MAX_BUFFER_SIZE: usize = 512;
 
 pub struct Server<'server> {
     pub routes: Router<'server>,
@@ -32,36 +33,60 @@ impl<'server> Server<'server> {
         let mut data = Vec::new();
         let mut expected_length = None;
         loop {
-            let mut buffer = [0u8; 512];
+            let mut buffer = [0u8; MAX_BUFFER_SIZE];
             let bytes_read = reader.read(&mut buffer)?;
             if bytes_read == 0 {
+                if let Some(expected_length) = expected_length
+                    && data.len() < expected_length
+                {
+                    return Err(Error::other("Request body incomplete"));
+                }
+                if expected_length.is_none() {
+                    return Err(Error::other("Partial header"));
+                }
                 break;
             }
-            let bytes_after_extend = data
-                .len()
-                .checked_add(bytes_read)
-                .ok_or_else(|| Error::other("Request size overflow"))?;
-            if bytes_after_extend > MAX_REQUEST_BYTES {
-                return Err(Error::other("Request size overflow."));
+            if let Some(expected_length) = expected_length
+                && expected_length - data.len() <= MAX_BUFFER_SIZE
+                && expected_length - data.len() <= bytes_read
+            {
+                data.extend_from_slice(&buffer[..(expected_length - data.len())]);
+            } else {
+                let bytes_after_extend = data
+                    .len()
+                    .checked_add(bytes_read)
+                    .ok_or_else(|| Error::other("Request size overflow"))?;
+                if bytes_after_extend > MAX_REQUEST_BYTES {
+                    return Err(Error::other("Request size overflow."));
+                }
+                data.extend_from_slice(&buffer[..bytes_read]);
             }
-            data.extend_from_slice(&buffer[..bytes_read]);
             if expected_length.is_none() {
                 let mut index = 0;
                 while index < data.len() && expected_length.is_none() {
                     if data.get(index..index + 4) == Some(&[13, 10, 13, 10]) {
-                        let header = str::from_utf8(&data[..index]).unwrap();
+                        let header = str::from_utf8(&data[..index])
+                            .map_err(|err| Error::other(err.to_string()))?;
                         for line in header.lines() {
                             if let Some((name, value)) = line.split_once(":")
-                                && name.eq_ignore_ascii_case("Content-Length")
+                                && name.trim().eq_ignore_ascii_case("Content-Length")
                             {
-                                let value = value.trim().parse::<usize>().unwrap();
-                                expected_length = Some(value + index + 4);
+                                let value = value
+                                    .trim()
+                                    .parse::<usize>()
+                                    .map_err(|err| Error::other(err.to_string()))?;
+                                let sum = value
+                                    .checked_add(index + 4)
+                                    .ok_or_else(|| Error::other("Request size overflow"))?;
+                                expected_length = Some(sum);
                             }
                         }
                         if expected_length.is_none() {
                             expected_length = Some(index + 4);
                         }
-                        if let Some(expected_length) = expected_length && expected_length > MAX_REQUEST_BYTES {
+                        if let Some(expected_length) = expected_length
+                            && expected_length > MAX_REQUEST_BYTES
+                        {
                             return Err(Error::other("Request size overflow"));
                         }
                     }
@@ -103,8 +128,11 @@ impl<'server> Server<'server> {
 
     pub fn run(&self, address: &str) -> std::io::Result<()> {
         let listener = TcpListener::bind(address)?;
-        for stream in listener.incoming() {
-            self.handle_client(stream?)?;
+        for incomming in listener.incoming() {
+            let stream = incomming?;
+            if let Err(error) = self.handle_client(stream) {
+                eprintln!("Client connection error: {error}");
+            }
         }
         Ok(())
     }

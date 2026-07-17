@@ -35,16 +35,19 @@ impl ChunkReader {
 
 impl Read for ChunkReader {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-        let Some(chunk) = self.chunks.pop_front() else {
+        let Some(mut chunk) = self.chunks.pop_front() else {
             return Ok(0);
         };
 
-        assert!(
-            chunk.len() <= buffer.len(),
-            "test chunk must fit in the read buffer"
-        );
-        buffer[..chunk.len()].copy_from_slice(&chunk);
-        Ok(chunk.len())
+        let bytes_read = chunk.len().min(buffer.len());
+        let unread = chunk.split_off(bytes_read);
+        buffer[..bytes_read].copy_from_slice(&chunk);
+
+        if !unread.is_empty() {
+            self.chunks.push_front(unread);
+        }
+
+        Ok(bytes_read)
     }
 }
 
@@ -52,11 +55,16 @@ impl Read for ChunkReader {
 fn reads_body_when_headers_and_body_arrive_separately() {
     let headers = b"POST / HTTP/1.1\r\nContent-Length: 3\r\n\r\n";
     let body = b"abc";
-    let mut reader = ChunkReader::new(vec![headers.to_vec(), body.to_vec()]);
+    let mut reader = ChunkReader::new(vec![
+        headers.to_vec(),
+        body.to_vec(),
+        b"must stay unread".to_vec(),
+    ]);
 
     let request = Server::read_one_request(&mut reader).unwrap();
 
     assert_eq!(request, [headers.as_slice(), body.as_slice()].concat());
+    assert_eq!(reader.remaining_chunks(), 1);
 }
 
 #[test]
@@ -71,6 +79,18 @@ fn counts_body_bytes_that_arrive_with_headers() {
         request,
         [first_chunk.as_slice(), second_chunk.as_slice()].concat()
     );
+}
+
+#[test]
+fn keeps_only_declared_request_when_suffix_arrives_in_first_read() {
+    let expected_request = b"POST / HTTP/1.1\r\nContent-Length: 3\r\n\r\nabc";
+    let mut first_chunk = expected_request.to_vec();
+    first_chunk.extend_from_slice(b"extra");
+    let mut reader = ChunkReader::new(vec![first_chunk]);
+
+    let request = Server::read_one_request(&mut reader).unwrap();
+
+    assert_eq!(request, expected_request);
 }
 
 #[test]
@@ -99,6 +119,17 @@ fn bodyless_request_completes_at_end_of_headers() {
 }
 
 #[test]
+fn content_length_zero_completes_at_end_of_headers() {
+    let request_bytes = b"POST / HTTP/1.1\r\nContent-Length: 0\r\n\r\n";
+    let mut reader = ChunkReader::new(vec![request_bytes.to_vec(), b"unexpected".to_vec()]);
+
+    let request = Server::read_one_request(&mut reader).unwrap();
+
+    assert_eq!(request, request_bytes);
+    assert_eq!(reader.remaining_chunks(), 1);
+}
+
+#[test]
 fn content_length_is_case_insensitive_while_accumulating() {
     let headers = b"POST / HTTP/1.1\r\ncontent-length: 3\r\n\r\n";
     let body = b"abc";
@@ -110,18 +141,16 @@ fn content_length_is_case_insensitive_while_accumulating() {
 }
 
 #[test]
-fn rejects_eof_before_declared_body_is_complete() {
-    let mut reader = ChunkReader::new(vec![
-        b"POST / HTTP/1.1\r\nContent-Length: 5\r\n\r\nabc".to_vec()
-    ]);
+fn rejects_eof_before_request_head_is_complete() {
+    let mut reader = ChunkReader::new(vec![b"GET / HTTP/1.1\r\nHost: localhost\r\n".to_vec()]);
 
     assert!(Server::read_one_request(&mut reader).is_err());
 }
 
 #[test]
-fn rejects_surplus_bytes_already_accumulated() {
+fn rejects_eof_before_declared_body_is_complete() {
     let mut reader = ChunkReader::new(vec![
-        b"POST / HTTP/1.1\r\nContent-Length: 3\r\n\r\nabcextra".to_vec(),
+        b"POST / HTTP/1.1\r\nContent-Length: 5\r\n\r\nabc".to_vec(),
     ]);
 
     assert!(Server::read_one_request(&mut reader).is_err());
@@ -130,7 +159,7 @@ fn rejects_surplus_bytes_already_accumulated() {
 #[test]
 fn rejects_invalid_content_length_without_panicking() {
     let mut reader = ChunkReader::new(vec![
-        b"POST / HTTP/1.1\r\nContent-Length: nope\r\n\r\n".to_vec()
+        b"POST / HTTP/1.1\r\nContent-Length: nope\r\n\r\n".to_vec(),
     ]);
 
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -165,6 +194,89 @@ fn rejects_content_length_larger_than_usize_without_panicking() {
 
     assert!(result.is_ok(), "invalid request input must not panic");
     assert!(result.unwrap().is_err());
+}
+
+#[test]
+fn rejects_content_length_when_total_length_overflows_usize_without_panicking() {
+    let request = format!("POST / HTTP/1.1\r\nContent-Length: {}\r\n\r\n", usize::MAX);
+    let mut reader = ChunkReader::new(vec![request.into_bytes()]);
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        Server::read_one_request(&mut reader)
+    }));
+
+    assert!(result.is_ok(), "request length calculation must not panic");
+    assert!(result.unwrap().is_err());
+}
+
+#[test]
+fn does_not_count_bytes_after_first_request_toward_request_capacity() {
+    const MAX_REQUEST_BYTES: usize = 64 * 1024;
+    const REQUIRED_BYTES_IN_FINAL_READ: usize = 5;
+
+    let placeholder_headers = b"POST / HTTP/1.1\r\nContent-Length: 00000\r\n\r\n";
+    let body_length = MAX_REQUEST_BYTES - placeholder_headers.len();
+    let headers = format!("POST / HTTP/1.1\r\nContent-Length: {body_length}\r\n\r\n");
+    assert_eq!(headers.len(), placeholder_headers.len());
+
+    let body_before_final_read = vec![b'a'; body_length - REQUIRED_BYTES_IN_FINAL_READ];
+    let mut chunks = vec![headers.as_bytes().to_vec()];
+    chunks.extend(
+        body_before_final_read
+            .chunks(512)
+            .map(|chunk| chunk.to_vec()),
+    );
+
+    let mut final_chunk = vec![b'a'; REQUIRED_BYTES_IN_FINAL_READ];
+    final_chunk.extend_from_slice(b"extra");
+    chunks.push(final_chunk);
+
+    let mut reader = ChunkReader::new(chunks);
+    let request = Server::read_one_request(&mut reader)
+        .expect("bytes after the first request must not count toward its capacity");
+
+    assert_eq!(request.len(), MAX_REQUEST_BYTES);
+    assert_eq!(&request[..headers.len()], headers.as_bytes());
+    assert!(request[headers.len()..].iter().all(|byte| *byte == b'a'));
+}
+
+#[test]
+fn keeps_exact_capacity_request_when_boundary_read_also_contains_suffix() {
+    const MAX_REQUEST_BYTES: usize = 64 * 1024;
+    const HEADER_END: &[u8] = b"\r\n\r\n";
+
+    let header_start = b"GET / HTTP/1.1\r\nX-Pad: ";
+    let padding_length = MAX_REQUEST_BYTES - header_start.len() - HEADER_END.len();
+    let mut expected_request = header_start.to_vec();
+    expected_request.resize(expected_request.len() + padding_length, b'a');
+    expected_request.extend_from_slice(HEADER_END);
+    assert_eq!(expected_request.len(), MAX_REQUEST_BYTES);
+
+    let final_boundary_start = expected_request.len() - 2;
+    let mut chunks: Vec<Vec<u8>> = expected_request[..final_boundary_start]
+        .chunks(512)
+        .map(|chunk| chunk.to_vec())
+        .collect();
+    let mut final_chunk = expected_request[final_boundary_start..].to_vec();
+    final_chunk.extend_from_slice(b"extra");
+    chunks.push(final_chunk);
+
+    let mut reader = ChunkReader::new(chunks);
+    let request = Server::read_one_request(&mut reader)
+        .expect("suffix bytes must not make an exact-capacity request overflow");
+
+    assert_eq!(request, expected_request);
+}
+
+#[test]
+fn does_not_treat_content_length_text_in_request_line_as_header() {
+    let malformed_head = b"Content-Length: 3\r\nHost: localhost\r\n\r\n";
+    let mut reader = ChunkReader::new(vec![malformed_head.to_vec(), b"abc".to_vec()]);
+
+    let request = Server::read_one_request(&mut reader).unwrap();
+
+    assert_eq!(request, malformed_head);
+    assert_eq!(reader.remaining_chunks(), 1);
 }
 
 #[test]

@@ -2,7 +2,7 @@
 
 Goal: accumulate one complete HTTP request before parsing it, even when TCP delivers the request across multiple reads.
 
-This phase fixes only the immediate single-read limitation that blocks browser form submissions. It does not try to implement production-grade connection handling. Phase 16 will harden this reader with deliberate limits, timeouts, and connection policy.
+This phase fixes only the immediate single-read limitation that blocks browser form submissions. It deliberately handles one request per connection and closes the connection after the response. It does not try to implement production-grade connection handling. Phase 16 will harden this reader with deliberate limits, timeouts, and a fuller connection policy.
 
 ## Why This Phase Exists
 
@@ -53,6 +53,7 @@ A larger buffer does not solve this. Buffer capacity controls how many bytes can
 - Requests whose bodies are framed with `Content-Length`
 - Bodyless requests such as the current `GET` routes
 - Headers and bodies split across multiple TCP reads
+- Bytes returned after the first request boundary are discarded before parsing
 - The existing parser, router, handler, and response flow
 - A temporary total-request capacity so accumulation is not unbounded
 
@@ -62,7 +63,7 @@ A larger buffer does not solve this. Buffer capacity controls how many bytes can
 - Slow-client protection and read timeouts
 - Multiple requests on one persistent connection
 - HTTP pipelining and preserving bytes for a following request
-- Full `Connection: close` and keep-alive behavior
+- Keep-alive behavior beyond the current close-after-one-request policy
 - `Transfer-Encoding: chunked`
 - Final duplicate `Content-Length` policy
 - Precise `400`, `408`, and `413` error mapping
@@ -106,10 +107,12 @@ Then compare the accumulated byte count with `expected_total_length`:
 ```text
 received < expected  -> read more
 received = expected  -> parse the complete request
-received > expected  -> reject surplus that is already accumulated
+received > expected  -> keep the first request, discard the suffix, then parse
 ```
 
-Once the exact request length is known, limit later reads to the remaining length. Do not perform another read merely to discover whether a second request is waiting. Extra bytes already accumulated can be rejected; bytes still in the socket are left unread when this one-request connection ends. Phase 16 will make the connection policy explicit.
+TCP read boundaries are arbitrary. The same stream bytes might arrive in one read or several reads, so request validity must not depend on how the operating system groups them. Bytes after `expected_total_length` are not an oversized body; they are unused stream data that could belong to a following request. Phase 06A does not support following requests, so keep only `received[..expected_total_length]`, discard any already-buffered suffix, parse the first request, and close the connection after responding.
+
+Each iteration may still read up to the fixed scratch-buffer size. Once the exact request length is known, append no more than the number of bytes the first request still needs. If the scratch buffer also contains a suffix, discard that suffix and stop as soon as the first request is complete. Do not perform another read merely to discover whether a second request is waiting. Bytes still in the socket are left unread when this one-request connection ends.
 
 Use checked arithmetic when adding the lengths. A client controls `Content-Length`, so it must not be allowed to overflow a `usize` or bypass the temporary capacity.
 
@@ -120,14 +123,14 @@ The framing inspection and `Request::parse` must agree about `Content-Length`, i
 1. Add a regression test that presents the request head and body as separate read chunks.
 2. Move the "read one request" work behind a small connection-level helper so it can be tested independently from routing.
 3. Track how many bytes in the request buffer are actually filled.
-4. Read only into unused capacity; never parse the zero-filled remainder of the buffer. If capacity is exhausted before the request is complete, return an error without calling `read` with an empty slice.
+4. Read into a fixed scratch buffer and only inspect `scratch[..bytes_read]`; never inspect or append its untouched zero-filled remainder.
 5. Search the complete accumulated prefix for `\r\n\r\n`, not only the newest chunk.
 6. If the marker is absent, read another chunk.
 7. Once the marker exists, inspect the request head for `Content-Length`.
 8. Calculate the expected total length, including any body bytes already received with the headers, and reject it if it exceeds the temporary capacity.
-9. If more body bytes are needed, limit later reads to the remaining request length.
+9. If more body bytes are needed, read another scratch-buffer chunk and append at most the remaining request length. Discard any suffix returned in that same read.
 10. If `read` returns `0` before the expected length arrives, report an incomplete request.
-11. When the exact request length is available, call `Request::parse` once with that complete slice.
+11. When at least the expected request length is available, keep the exact first-request slice, discard any suffix, and call `Request::parse` once with that slice.
 12. Confirm that the handler can print the raw `request.body()` bytes.
 13. Stop before splitting, decoding, or validating form fields; that belongs to Phase 06B.
 
@@ -142,40 +145,37 @@ READING HEAD
   v
 READING BODY
   | received body < Content-Length
-  +-------------------------------> read remaining bytes
+  +-------------------------------> read scratch chunk; append only needed bytes
   |
-  | exact body length received
+  | complete body received
   v
-PARSE REQUEST -> ROUTE -> HANDLE
+KEEP FIRST REQUEST -> DISCARD SUFFIX -> PARSE -> ROUTE -> HANDLE -> CLOSE
 ```
 
 ## Tiny Pseudocode Shape
 
 ```text
-received = 0
+received = empty byte buffer
 expected_total = unknown
 
 loop:
-  if expected_total is known:
-    writable_length = min(unused_capacity, expected_total - received)
-  otherwise:
-    writable_length = unused_capacity
-
-  if writable_length is zero before the request is complete:
-    report temporary capacity exceeded
-
-  read bytes into that writable request-buffer region
+  read bytes into a fixed-size scratch buffer
 
   if read returned EOF:
-    if received is zero:
-      finish the empty connection
-    otherwise:
-      report an incomplete request
+    if expected_total is unknown:
+      report an incomplete request head
+    if len(received) is less than expected_total:
+      report an incomplete request body
 
-  increase received by bytes_read
+  if expected_total is known:
+    remaining = expected_total - len(received)
+    append scratch[0..min(bytes_read, remaining)]
+  otherwise:
+    reject if len(received) + bytes_read exceeds temporary capacity
+    append scratch[0..bytes_read]
 
   if expected_total is unknown:
-    find header terminator in buffer[0..received]
+    find header terminator in received bytes
     if it is not present:
       continue
 
@@ -183,13 +183,11 @@ loop:
     calculate expected_total with checked arithmetic
     reject if expected_total exceeds temporary capacity
 
-  if received is less than expected_total:
+  if len(received) is less than expected_total:
     continue
 
-  if received is greater than expected_total:
-    reject surplus bytes that were already accumulated
-
-  parse buffer[0..expected_total]
+  discard received[expected_total..]
+  parse received[0..expected_total]
   stop reading this request
 ```
 
@@ -209,7 +207,6 @@ Useful cases:
 - `eof_before_declared_body_is_an_error`
 - `header_fills_capacity_without_terminator_is_an_error`
 - `declared_total_larger_than_capacity_is_an_error`
-- `surplus_already_in_the_accumulator_is_rejected`
 
 For a deterministic test, consider making the accumulation helper accept a `Read` implementation. A small scripted reader can then return predetermined chunks. That is more reliable than using timing or sleeping between two TCP writes.
 
@@ -217,9 +214,9 @@ The existing `Request::parse` tests should remain strict:
 
 - A complete body of the declared length succeeds.
 - A shorter body fails.
-- A complete slice containing surplus bytes fails while pipelining is unsupported.
+- A slice whose post-header byte count differs from `Content-Length` fails.
 
-The new tests prove that the connection layer waits before invoking that strict parser. They do not require an extra socket read to search for a possible following request.
+The connection reader is responsible for giving that strict parser exactly `received[..expected_total_length]`. It waits for incomplete requests, discards an already-buffered suffix, and does not perform an extra socket read to search for a possible following request.
 
 ## Manual Experiment
 
@@ -272,19 +269,21 @@ Problem: `read_exact(Content-Length)` waits for too much data.
 
 Possible cause:
 
-- Part of the body already arrived with the request head. Read only `Content-Length - body_bytes_already_received` additional bytes.
+- Part of the body already arrived with the request head. Track how many request bytes remain, append no more than that amount from each scratch-buffer read, and stop as soon as the declared body is complete.
 
-Problem: a full request buffer is reported as EOF.
+Problem: a valid near-capacity request is rejected when the final read also contains a suffix.
 
 Possible cause:
 
-- You called `read` with an empty destination slice. Check remaining capacity before reading and report capacity exhaustion separately.
+- You counted every byte returned in the scratch buffer against the first request. Once `expected_total_length` is known, append at most the remaining request bytes; the suffix does not count toward the first request's capacity.
 
 ## Questions to Answer
 
 - Why does a 65,536-byte buffer not guarantee a complete 100-byte request?
 - What does `\r\n\r\n` finish: the request head or the whole request?
 - Why must body bytes already in the first read count toward `Content-Length`?
+- Why are bytes after the first request boundary not necessarily an oversized body?
+- Why is discarding those bytes safe only while the connection closes after one response?
 - Why is EOF different from temporarily having no bytes available?
 - Why can `read_to_end` deadlock with a keep-alive client?
 - Why should the connection reader avoid decoding form fields?
@@ -297,6 +296,7 @@ You are done when:
 - A request split across several reads is accumulated before parsing.
 - A browser form POST no longer fails merely because its body arrives later than its headers.
 - `Request::parse` still receives exactly one complete request slice.
+- The response announces `Connection: close`, so discarded suffix bytes cannot be needed later on that connection.
 - A premature EOF becomes an error instead of an infinite loop.
 - The implementation retains a temporary total capacity instead of growing without bound.
 - A deterministic regression test covers separated header and body chunks.
