@@ -8,7 +8,7 @@ The application domain is separate from the backend core. Do not assume a to-do 
 
 Important constraints for assistance:
 
-- Do not provide full code solutions unless the user explicitly asks to break this rule.
+- Do not provide full code solution unless the user explicitly asks to break this rule. Complete test code is allowed when the user asks for tests.
 - Prefer explanations, small snippets, pseudocode, diagrams, tests, and debugging hints.
 - Guide the user step by step so they implement the important parts themselves.
 - Avoid adding web frameworks or large libraries.
