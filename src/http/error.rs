@@ -14,6 +14,8 @@ pub enum HttpError {
     RequestLineInvalid,
     RequestHttpVersionInvalid,
     RequestRouteInvalid,
+    FormParseError,
+    FormMissingField(String),
 }
 
 impl From<Utf8Error> for HttpError {
@@ -56,6 +58,12 @@ impl fmt::Display for HttpError {
             }
             HttpError::RequestRouteInvalid => {
                 write!(f, "Invalid Route Url")
+            }
+            HttpError::FormParseError => {
+                write!(f, "Form Parse Error")
+            }
+            HttpError::FormMissingField(field) => {
+                write!(f, "Form Missing Field: {}", field)
             }
         }
     }

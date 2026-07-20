@@ -6,6 +6,7 @@ use std::{
 };
 
 use life::{
+    constant::{MAX_BUFFER_SIZE, MAX_REQUEST_BYTES},
     http::{
         request::Request,
         response::{Response, StatusCode},
@@ -15,6 +16,23 @@ use life::{
 
 fn hello_world<'a>(_: &'a Request<'_>) -> Response<'a> {
     Response::html(StatusCode::Ok, "<h1>HELLO WORLD</h1>")
+}
+
+fn post_request_parts_for_total_length(total_length: usize) -> (String, usize) {
+    let mut body_length = total_length;
+
+    loop {
+        let headers = format!("POST / HTTP/1.1\r\nContent-Length: {body_length}\r\n\r\n");
+        let adjusted_body_length = total_length
+            .checked_sub(headers.len())
+            .expect("request limit must be large enough to contain POST headers");
+
+        if adjusted_body_length == body_length {
+            return (headers, body_length);
+        }
+
+        body_length = adjusted_body_length;
+    }
 }
 
 struct ChunkReader {
@@ -211,19 +229,16 @@ fn rejects_content_length_when_total_length_overflows_usize_without_panicking() 
 
 #[test]
 fn does_not_count_bytes_after_first_request_toward_request_capacity() {
-    const MAX_REQUEST_BYTES: usize = 64 * 1024;
     const REQUIRED_BYTES_IN_FINAL_READ: usize = 5;
 
-    let placeholder_headers = b"POST / HTTP/1.1\r\nContent-Length: 00000\r\n\r\n";
-    let body_length = MAX_REQUEST_BYTES - placeholder_headers.len();
-    let headers = format!("POST / HTTP/1.1\r\nContent-Length: {body_length}\r\n\r\n");
-    assert_eq!(headers.len(), placeholder_headers.len());
+    let (headers, body_length) = post_request_parts_for_total_length(MAX_REQUEST_BYTES);
+    assert_eq!(headers.len() + body_length, MAX_REQUEST_BYTES);
 
     let body_before_final_read = vec![b'a'; body_length - REQUIRED_BYTES_IN_FINAL_READ];
     let mut chunks = vec![headers.as_bytes().to_vec()];
     chunks.extend(
         body_before_final_read
-            .chunks(512)
+            .chunks(MAX_BUFFER_SIZE)
             .map(|chunk| chunk.to_vec()),
     );
 
@@ -242,7 +257,6 @@ fn does_not_count_bytes_after_first_request_toward_request_capacity() {
 
 #[test]
 fn keeps_exact_capacity_request_when_boundary_read_also_contains_suffix() {
-    const MAX_REQUEST_BYTES: usize = 64 * 1024;
     const HEADER_END: &[u8] = b"\r\n\r\n";
 
     let header_start = b"GET / HTTP/1.1\r\nX-Pad: ";
@@ -254,7 +268,7 @@ fn keeps_exact_capacity_request_when_boundary_read_also_contains_suffix() {
 
     let final_boundary_start = expected_request.len() - 2;
     let mut chunks: Vec<Vec<u8>> = expected_request[..final_boundary_start]
-        .chunks(512)
+        .chunks(MAX_BUFFER_SIZE)
         .map(|chunk| chunk.to_vec())
         .collect();
     let mut final_chunk = expected_request[final_boundary_start..].to_vec();
@@ -306,18 +320,13 @@ fn does_not_treat_a_second_header_terminator_in_the_body_as_framing() {
 
 #[test]
 fn rejects_header_that_fills_request_capacity_without_a_terminator() {
-    const MAX_REQUEST_BYTES: usize = 64 * 1024;
-    let chunks = (0..MAX_REQUEST_BYTES / 512)
-        .map(|_| vec![b'x'; 512])
-        .collect();
-    let mut reader = ChunkReader::new(chunks);
+    let mut reader = ChunkReader::new(vec![vec![b'x'; MAX_REQUEST_BYTES]]);
 
     assert!(Server::read_one_request(&mut reader).is_err());
 }
 
 #[test]
 fn rejects_declared_request_larger_than_capacity() {
-    const MAX_REQUEST_BYTES: usize = 64 * 1024;
     let request = format!("POST / HTTP/1.1\r\nContent-Length: {MAX_REQUEST_BYTES}\r\n\r\n");
     let mut reader = ChunkReader::new(vec![request.into_bytes()]);
 

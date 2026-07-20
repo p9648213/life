@@ -49,7 +49,6 @@ impl<'route> Router<'route> {
             HttpMethod::Get => {
                 let routes = self.get_routes();
                 let path = request.path();
-
                 if let Some(handler) = routes.get(path) {
                     handler(request)
                 } else {
@@ -59,7 +58,6 @@ impl<'route> Router<'route> {
             HttpMethod::Post => {
                 let routes = self.post_routes();
                 let path = request.path();
-
                 if let Some(handler) = routes.get(path) {
                     handler(request)
                 } else {

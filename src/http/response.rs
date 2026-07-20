@@ -46,7 +46,6 @@ impl<'header> Response<'header> {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut response = Vec::new();
-
         response.extend_from_slice(
             format!(
                 "HTTP/1.1 {} {}\r\n",
@@ -55,7 +54,6 @@ impl<'header> Response<'header> {
             )
             .as_bytes(),
         );
-
         for header in &self.headers {
             if !header.0.eq_ignore_ascii_case("Content-Length") {
                 response.extend_from_slice(format!("{}: {}\r\n", header.0, header.1).as_bytes());
@@ -70,10 +68,18 @@ impl<'header> Response<'header> {
         response
     }
 
-    pub fn html(status_code: StatusCode, text: &str) -> Self {
+    pub fn html(status_code: StatusCode, html: &str) -> Self {
         Self::new(
             status_code,
             vec![("Content-Type", "text/html; charset=utf-8")],
+            html.as_bytes().to_vec(),
+        )
+    }
+
+    pub fn text_plain(status_code: StatusCode, text: &str) -> Self {
+        Self::new(
+            status_code,
+            vec![("Content-Type", "text/plain")],
             text.as_bytes().to_vec(),
         )
     }

@@ -3,14 +3,14 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::http::{
-    request::Request,
-    response::{Response, StatusCode},
-    router::Router,
+use crate::{
+    constant::{MAX_BUFFER_SIZE, MAX_REQUEST_BYTES},
+    http::{
+        request::Request,
+        response::{Response, StatusCode},
+        router::Router,
+    },
 };
-
-const MAX_REQUEST_BYTES: usize = 64 * 1024;
-const MAX_BUFFER_SIZE: usize = 512;
 
 pub struct Server<'server> {
     pub routes: Router<'server>,
@@ -125,7 +125,6 @@ impl<'server> Server<'server> {
                 return Ok(());
             }
         };
-
         let response = self.routes.handle_request(&request);
         stream.write_all(&response.to_bytes())?;
         Ok(())

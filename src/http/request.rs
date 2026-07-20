@@ -61,13 +61,11 @@ impl<'buf> Request<'buf> {
         let mut headers: &[u8] = &[];
         let mut index = 0;
         let mut body_start_index = 0;
-
         while index < data_buffer.len() {
             if request_line.is_empty() && data_buffer.get(index..index + 2) == Some(&[13, 10]) {
                 request_line = &data_buffer[..index];
                 index += 2;
             }
-
             if request_line.len() + 2 <= index
                 && data_buffer.get(index..index + 4) == Some(&[13, 10, 13, 10])
             {
@@ -75,23 +73,17 @@ impl<'buf> Request<'buf> {
                 body_start_index = index + 4;
                 break;
             }
-
             index += 1;
         }
-
         if headers.is_empty() {
             return Err(HttpError::RequestHeaderInvalid);
         }
-
         let request_line = Self::parse_request_line(request_line)?;
         let (content_length, headers_map) = Self::parse_header(headers)?;
-
         if request_line.version != "HTTP/1.1" {
             return Err(HttpError::RequestHttpVersionInvalid);
         }
-
         let parse_query = Self::parse_query(request_line.target_path)?;
-
         let body = match content_length {
             Some(ref content_length) => {
                 if content_length.0 == data_buffer.len() - body_start_index {
@@ -107,7 +99,6 @@ impl<'buf> Request<'buf> {
                 &[]
             }
         };
-
         Ok(Self {
             request_line,
             headers: headers_map,
@@ -128,11 +119,9 @@ impl<'buf> Request<'buf> {
     fn parse_request_line(request_line_bytes: &'buf [u8]) -> Result<RequestLine<'buf>, HttpError> {
         let rl = str::from_utf8(request_line_bytes)?;
         let mut rl_iter = rl.split_whitespace();
-
         let method = Self::parse_method(rl_iter.next().unwrap_or_default())?;
         let target_path = rl_iter.next().unwrap_or_default();
         let version = rl_iter.next().unwrap_or_default();
-
         if rl_iter.next().is_some() || target_path.is_empty() || version.is_empty() {
             Err(HttpError::RequestLineInvalid)
         } else {
@@ -151,18 +140,14 @@ impl<'buf> Request<'buf> {
         let headers_iters = headers.split("\r\n");
         let mut headers_map = HashMap::new();
         let mut content_length = None;
-
         for header in headers_iters {
             if let Some((name, value)) = header.split_once(":") {
                 let name = name.trim();
                 let value = value.trim();
-
                 if name.is_empty() {
                     return Err(HttpError::RequestHeaderInvalid);
                 }
-
                 headers_map.insert(name.to_ascii_uppercase(), value);
-
                 if name.eq_ignore_ascii_case("Content-Length") {
                     content_length = Some(ContentLength(value.parse::<usize>()?));
                 }
@@ -170,16 +155,13 @@ impl<'buf> Request<'buf> {
                 return Err(HttpError::RequestHeaderInvalid);
             }
         }
-
         Ok((content_length, headers_map))
     }
 
     fn parse_query(target_path: &str) -> Result<(&str, HashMap<&str, &str>), HttpError> {
         let mut query = HashMap::new();
         let mut path = target_path;
-
         let split_query = target_path.split_once("?");
-
         if let Some(q) = split_query {
             path = q.0;
             let query_params = q.1.split("&");
@@ -198,5 +180,40 @@ impl<'buf> Request<'buf> {
         }
 
         Ok((path, query))
+    }
+
+    fn parse_form(&self) -> Result<HashMap<&str, &str>, HttpError> {
+        if let Some(content_type) = self.get_header("Content-Type")
+            && content_type == "application/x-www-form-urlencoded"
+        {
+            let body_utf8 = str::from_utf8(self.body())?.trim();
+            let mut form_map = HashMap::new();
+            let name_value_slice = body_utf8.split("&");
+            for name_value in name_value_slice {
+                match name_value.split_once("=") {
+                    Some((name, value)) => {
+                        form_map.insert(name, value);
+                    }
+                    None => return Err(HttpError::FormParseError),
+                }
+            }
+            Ok(form_map)
+        } else {
+            Err(HttpError::FormParseError)
+        }
+    }
+
+    pub fn extract_form<const N: usize>(&self, fields: [&str; N]) -> Result<[&str; N], HttpError> {
+        let mut form_map = self.parse_form()?;
+        let mut values: Vec<&str> = Vec::with_capacity(N);
+        for field in fields {
+            match form_map.remove(field) {
+                Some(value) => values.push(value),
+                None => {
+                    return Err(HttpError::FormMissingField(field.to_owned()));
+                }
+            }
+        }
+        Ok(values.try_into().unwrap())
     }
 }
