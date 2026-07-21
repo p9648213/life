@@ -1,4 +1,7 @@
-use crate::constant::{CONTENT_LENGTH, CONTENT_TYPE};
+use crate::{
+    constant::{CONTENT_LENGTH, CONTENT_TYPE},
+    http::error::HttpError,
+};
 
 pub struct Response<'header> {
     status_code: StatusCode,
@@ -34,14 +37,10 @@ impl StatusCode {
 }
 
 impl<'header> Response<'header> {
-    pub fn new(
-        status_code: StatusCode,
-        headers: Vec<(&'header str, &'header str)>,
-        body_bytes: Vec<u8>,
-    ) -> Self {
+    pub fn new(status_code: StatusCode, body_bytes: Vec<u8>) -> Self {
         Self {
             status_code,
-            headers,
+            headers: Vec::new(),
             body_bytes,
         }
     }
@@ -70,19 +69,23 @@ impl<'header> Response<'header> {
         response
     }
 
+    pub fn add_header(&self, name: &str, value: &str) -> Result<(), HttpError> {
+        Ok(())
+    }
+
     pub fn html(status_code: StatusCode, html: &str) -> Self {
-        Self::new(
+        Response {
             status_code,
-            vec![(CONTENT_TYPE, "text/html; charset=utf-8")],
-            html.as_bytes().to_vec(),
-        )
+            headers: vec![(CONTENT_TYPE, "text/html; charset=utf-8")],
+            body_bytes: html.as_bytes().to_vec(),
+        }
     }
 
     pub fn text_plain(status_code: StatusCode, text: &str) -> Self {
-        Self::new(
+        Response {
             status_code,
-            vec![(CONTENT_TYPE, "text/plain")],
-            text.as_bytes().to_vec(),
-        )
+            headers: vec![(CONTENT_TYPE, "text/plain")],
+            body_bytes: text.as_bytes().to_vec(),
+        }
     }
 }
