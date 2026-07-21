@@ -16,6 +16,8 @@ pub enum HttpError {
     RequestRouteInvalid,
     FormParseError,
     FormMissingField(String),
+    FormFieldMissingValue,
+    FormFieldMissingName,
 }
 
 impl From<Utf8Error> for HttpError {
@@ -36,7 +38,7 @@ impl fmt::Display for HttpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             HttpError::InvalidUtf8(err) => {
-                write!(f, "Invalid UTF-8 in headers: {err}")
+                write!(f, "Invalid UTF-8 In Headers: {err}")
             }
             HttpError::MethodParseError => {
                 write!(f, "Invalid Http Method")
@@ -64,6 +66,12 @@ impl fmt::Display for HttpError {
             }
             HttpError::FormMissingField(field) => {
                 write!(f, "Form Missing Field: {}", field)
+            }
+            HttpError::FormFieldMissingValue => {
+                write!(f, "Form Field Missing Value")
+            }
+            HttpError::FormFieldMissingName => {
+                write!(f, "Form Field Missing Name")
             }
         }
     }

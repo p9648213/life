@@ -159,6 +159,15 @@ fn content_length_is_case_insensitive_while_accumulating() {
 }
 
 #[test]
+fn rejects_whitespace_before_content_length_colon_while_accumulating() {
+    let mut reader = ChunkReader::new(vec![
+        b"POST / HTTP/1.1\r\nContent-Length : 3\r\n\r\nabc".to_vec(),
+    ]);
+
+    assert!(Server::read_one_request(&mut reader).is_err());
+}
+
+#[test]
 fn rejects_eof_before_request_head_is_complete() {
     let mut reader = ChunkReader::new(vec![b"GET / HTTP/1.1\r\nHost: localhost\r\n".to_vec()]);
 

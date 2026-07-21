@@ -16,6 +16,10 @@ Important constraints for assistance:
 - Treat the codebase as a serious engineering project, but do not claim it is production-ready until security, deployment, operational, and protocol-hardening work has been done.
 - Prefer explicit code flow and clear module boundaries over hidden framework-style magic.
 - When giving feedback, cover correctness, API boundaries, testability, performance implications, and what should wait until measurement.
+- For loops over network or other client-controlled input, explicitly analyze worst-case time and memory usage up to the configured limits. Look for growing buffers that are rescanned, nested loops whose work is amplified by partial reads, and repeated copying or allocation.
+- Treat pathological complexity on permitted or adversarial input as a correctness and availability issue, not as optional optimization. Do not defer an obvious quadratic request-reading or parsing path merely because functional tests pass or a smaller current limit hides its cost.
+- Evaluate boundary tests for both result and runtime. Prefer deterministic invariants or work-count checks when practical; at minimum, investigate max-size tests that are unexpectedly slow instead of accepting them as green only because they eventually pass.
+- Re-evaluate algorithmic cost whenever request, header, body, buffer, or collection limits change. Record how the work scales with the limit, and require request framing and parsing to examine each input byte only a bounded number of times unless a different complexity is explicitly justified.
 - Cryptography, password hashing, and TLS are exceptions: recommend proven libraries or external tools instead of teaching unsafe homemade implementations.
 
 The detailed guide has been moved into separate files under `docs/`.

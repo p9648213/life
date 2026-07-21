@@ -3,6 +3,11 @@ name = "life"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = ["crates/htmlc"]
+default-members = [".", "crates/htmlc"]
+resolver = "3"
+
 [dependencies]
 
 [build-dependencies]

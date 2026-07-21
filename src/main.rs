@@ -17,8 +17,8 @@ fn form_post<'buf, 'req>(req: &'req Request<'buf>) -> Response<'req> {
     let result = req.extract_form(["name", "message"]);
     match result {
         Ok(values) => {
-            let name = values[0];
-            let message = values[1];
+            let name = &values[0];
+            let message = &values[1];
             let html = format!("<div>Name: {} - Message: {}</div>", name, message);
             Response::html(StatusCode::Ok, &html)
         }

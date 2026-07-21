@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
-use crate::http::error::HttpError;
+use crate::{
+    constant::{CONTENT_LENGTH, CONTENT_TYPE, FORM_CONTENT_TYPE},
+    http::error::HttpError,
+    util::decode_form,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum HttpMethod {
@@ -148,7 +152,7 @@ impl<'buf> Request<'buf> {
                     return Err(HttpError::RequestHeaderInvalid);
                 }
                 headers_map.insert(name.to_ascii_uppercase(), value);
-                if name.eq_ignore_ascii_case("Content-Length") {
+                if name.eq_ignore_ascii_case(CONTENT_LENGTH) {
                     content_length = Some(ContentLength(value.parse::<usize>()?));
                 }
             } else {
@@ -182,30 +186,46 @@ impl<'buf> Request<'buf> {
         Ok((path, query))
     }
 
-    fn parse_form(&self) -> Result<HashMap<&str, &str>, HttpError> {
-        if let Some(content_type) = self.get_header("Content-Type")
-            && content_type == "application/x-www-form-urlencoded"
-        {
-            let body_utf8 = str::from_utf8(self.body())?.trim();
-            let mut form_map = HashMap::new();
-            let name_value_slice = body_utf8.split("&");
-            for name_value in name_value_slice {
-                match name_value.split_once("=") {
-                    Some((name, value)) => {
-                        form_map.insert(name, value);
+    fn parse_form(&self) -> Result<HashMap<String, String>, HttpError> {
+        if let Some(content_type) = self.get_header(CONTENT_TYPE) {
+            let mut content_type = content_type.split(";");
+            if let Some(content_type) = content_type.next()
+                && content_type.trim().eq_ignore_ascii_case(FORM_CONTENT_TYPE)
+            {
+                let body_utf8 = str::from_utf8(self.body())?.trim();
+                let mut form_map = HashMap::new();
+                let name_value_slice = body_utf8.split("&");
+                for name_value in name_value_slice {
+                    match name_value.split_once("=") {
+                        Some((name, value)) => {
+                            if name.is_empty() {
+                                return Err(HttpError::FormFieldMissingName);
+                            }
+                            if value.is_empty() {
+                                return Err(HttpError::FormFieldMissingValue);
+                            }
+                            let decoded_name = decode_form(name.as_bytes())?;
+                            let decoded_value = decode_form(value.as_bytes())?;
+                            form_map.insert(decoded_name, decoded_value);
+                        }
+                        None => return Err(HttpError::FormParseError),
                     }
-                    None => return Err(HttpError::FormParseError),
                 }
+                Ok(form_map)
+            } else {
+                Err(HttpError::FormParseError)
             }
-            Ok(form_map)
         } else {
             Err(HttpError::FormParseError)
         }
     }
 
-    pub fn extract_form<const N: usize>(&self, fields: [&str; N]) -> Result<[&str; N], HttpError> {
+    pub fn extract_form<const N: usize>(
+        &self,
+        fields: [&str; N],
+    ) -> Result<[String; N], HttpError> {
         let mut form_map = self.parse_form()?;
-        let mut values: Vec<&str> = Vec::with_capacity(N);
+        let mut values = Vec::with_capacity(N);
         for field in fields {
             match form_map.remove(field) {
                 Some(value) => values.push(value),

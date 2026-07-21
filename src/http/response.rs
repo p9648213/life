@@ -1,3 +1,5 @@
+use crate::constant::{CONTENT_LENGTH, CONTENT_TYPE};
+
 pub struct Response<'header> {
     status_code: StatusCode,
     headers: Vec<(&'header str, &'header str)>,
@@ -55,23 +57,23 @@ impl<'header> Response<'header> {
             .as_bytes(),
         );
         for header in &self.headers {
-            if !header.0.eq_ignore_ascii_case("Content-Length") {
+            if !header.0.eq_ignore_ascii_case(CONTENT_LENGTH) {
                 response.extend_from_slice(format!("{}: {}\r\n", header.0, header.1).as_bytes());
             }
         }
-        response
-            .extend_from_slice(format!("Content-Length: {}\r\n", self.body_bytes.len()).as_bytes());
+        response.extend_from_slice(
+            format!("{CONTENT_LENGTH}: {}\r\n", self.body_bytes.len()).as_bytes(),
+        );
         response.extend_from_slice(b"Connection: close\r\n");
         response.extend_from_slice(b"\r\n");
         response.extend_from_slice(&self.body_bytes);
-
         response
     }
 
     pub fn html(status_code: StatusCode, html: &str) -> Self {
         Self::new(
             status_code,
-            vec![("Content-Type", "text/html; charset=utf-8")],
+            vec![(CONTENT_TYPE, "text/html; charset=utf-8")],
             html.as_bytes().to_vec(),
         )
     }
@@ -79,7 +81,7 @@ impl<'header> Response<'header> {
     pub fn text_plain(status_code: StatusCode, text: &str) -> Self {
         Self::new(
             status_code,
-            vec![("Content-Type", "text/plain")],
+            vec![(CONTENT_TYPE, "text/plain")],
             text.as_bytes().to_vec(),
         )
     }

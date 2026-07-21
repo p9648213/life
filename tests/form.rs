@@ -172,6 +172,19 @@ fn rejects_required_form_field_with_empty_value() {
 }
 
 #[test]
+fn allows_empty_unrequested_form_field() {
+    let bytes = form_request(
+        b"required=ok&optional=",
+        "application/x-www-form-urlencoded",
+    );
+    let request = parse_ok(&bytes);
+
+    let values = request.extract_form(["required"]).unwrap();
+
+    assert_eq!(values, ["ok"]);
+}
+
+#[test]
 fn rejects_non_form_content_type() {
     let bytes = form_request(b"name=Rust", "text/plain");
     let request = parse_ok(&bytes);

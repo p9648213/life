@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    constant::{MAX_BUFFER_SIZE, MAX_REQUEST_BYTES},
+    constant::{CONTENT_LENGTH, MAX_BUFFER_SIZE, MAX_REQUEST_BYTES},
     http::{
         request::Request,
         response::{Response, StatusCode},
@@ -32,6 +32,7 @@ impl<'server> Server<'server> {
     pub fn read_one_request(reader: &mut impl Read) -> std::io::Result<Vec<u8>> {
         let mut data = Vec::new();
         let mut expected_length = None;
+        let mut index = 0;
         loop {
             let mut buffer = [0u8; MAX_BUFFER_SIZE];
             let bytes_read = reader.read(&mut buffer)?;
@@ -64,8 +65,7 @@ impl<'server> Server<'server> {
                 }
             }
             if expected_length.is_none() {
-                let mut index = 0;
-                while index < data.len() && expected_length.is_none() {
+                while index + 4 <= data.len() && expected_length.is_none() {
                     if data.get(index..index + 4) == Some(&[13, 10, 13, 10]) {
                         let header = str::from_utf8(&data[..index])
                             .map_err(|err| Error::other(err.to_string()))?;
@@ -74,7 +74,7 @@ impl<'server> Server<'server> {
                                 continue;
                             }
                             if let Some((name, value)) = line.split_once(":")
-                                && name.trim().eq_ignore_ascii_case("Content-Length")
+                                && name.trim().eq_ignore_ascii_case(CONTENT_LENGTH)
                             {
                                 let value = value
                                     .trim()

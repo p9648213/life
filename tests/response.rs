@@ -33,17 +33,60 @@ fn content_length_counts_body_bytes_not_characters() {
 }
 
 #[test]
-fn caller_supplied_content_length_is_ignored() {
-    let bytes = Response::new(
-        StatusCode::Ok,
-        vec![("Content-Length", "999"), ("X-Test", "yes")],
-        b"abc".to_vec(),
-    )
-    .to_bytes();
+fn valid_custom_header_is_serialized() {
+    let bytes = Response::new(StatusCode::Ok, vec![("X-Test", "yes")], b"abc".to_vec())
+        .expect("valid response headers should be accepted")
+        .to_bytes();
     let response = String::from_utf8(bytes).unwrap();
 
     assert!(response.contains("X-Test: yes\r\n"));
     assert!(response.contains("Content-Length: 3\r\n"));
-    assert!(!response.contains("Content-Length: 999\r\n"));
     assert_eq!(response.matches("Content-Length:").count(), 1);
+}
+
+#[test]
+fn response_new_rejects_cr_or_lf_in_header_name() {
+    for name in ["X-Test\rInjected", "X-Test\nInjected"] {
+        let result = Response::new(StatusCode::Ok, vec![(name, "safe")], b"ok".to_vec());
+
+        assert!(
+            result.is_err(),
+            "invalid header name should be rejected: {name:?}"
+        );
+    }
+}
+
+#[test]
+fn response_new_rejects_cr_or_lf_in_header_value() {
+    for value in [
+        "safe\rInjected: yes",
+        "safe\nInjected: yes",
+        "safe\r\nInjected: yes",
+    ] {
+        let result = Response::new(StatusCode::Ok, vec![("X-Test", value)], b"ok".to_vec());
+
+        assert!(
+            result.is_err(),
+            "invalid header value should be rejected: {value:?}"
+        );
+    }
+}
+
+#[test]
+fn response_new_rejects_serializer_owned_framing_headers_case_insensitively() {
+    for name in [
+        "Content-Length",
+        "content-length",
+        "Transfer-Encoding",
+        "transfer-encoding",
+        "Connection",
+        "connection",
+    ] {
+        let result = Response::new(StatusCode::Ok, vec![(name, "invalid")], b"ok".to_vec());
+
+        assert!(
+            result.is_err(),
+            "serializer-owned header should be rejected: {name}"
+        );
+    }
 }

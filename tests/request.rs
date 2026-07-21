@@ -95,6 +95,27 @@ fn preserves_colons_inside_header_values() {
 }
 
 #[test]
+fn rejects_whitespace_before_header_colon() {
+    let result = Request::parse(b"POST / HTTP/1.1\r\nContent-Length : 5\r\n\r\nabcde");
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_tab_separated_request_line() {
+    let result = Request::parse(b"GET\t/\tHTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_bare_lf_inside_request_headers() {
+    let result = Request::parse(b"GET / HTTP/1.1\r\nHost: localhost\nX-Test: value\r\n\r\n");
+
+    assert!(result.is_err());
+}
+
+#[test]
 fn content_length_name_is_case_insensitive() {
     let request = parse_ok(b"POST / HTTP/1.1\r\ncontent-length: 3\r\n\r\nabc");
 
