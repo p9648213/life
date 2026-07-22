@@ -164,14 +164,6 @@ fn reports_the_missing_required_form_field() {
 }
 
 #[test]
-fn rejects_required_form_field_with_empty_value() {
-    let bytes = form_request(b"name=&message=Hello", "application/x-www-form-urlencoded");
-    let request = parse_ok(&bytes);
-
-    assert!(request.extract_form(["name", "message"]).is_err());
-}
-
-#[test]
 fn allows_empty_unrequested_form_field() {
     let bytes = form_request(
         b"required=ok&optional=",

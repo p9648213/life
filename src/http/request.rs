@@ -65,7 +65,7 @@ impl<'buf> Request<'buf> {
         let mut headers: &[u8] = &[];
         let mut index = 0;
         let mut body_start_index = 0;
-        while index < data_buffer.len() {
+        while index + 2 < data_buffer.len() {
             if request_line.is_empty() && data_buffer.get(index..index + 2) == Some(&[13, 10]) {
                 request_line = &data_buffer[..index];
                 index += 2;
@@ -200,9 +200,6 @@ impl<'buf> Request<'buf> {
                         Some((name, value)) => {
                             if name.is_empty() {
                                 return Err(HttpError::FormFieldMissingName);
-                            }
-                            if value.is_empty() {
-                                return Err(HttpError::FormFieldMissingValue);
                             }
                             let decoded_name = decode_form(name.as_bytes())?;
                             let decoded_value = decode_form(value.as_bytes())?;

@@ -116,6 +116,13 @@ fn rejects_bare_lf_inside_request_headers() {
 }
 
 #[test]
+fn rejects_bare_cr_inside_request_headers() {
+    let result = Request::parse(b"GET / HTTP/1.1\r\nHost: localhost\rX-Test: value\r\n\r\n");
+
+    assert!(result.is_err());
+}
+
+#[test]
 fn content_length_name_is_case_insensitive() {
     let request = parse_ok(b"POST / HTTP/1.1\r\ncontent-length: 3\r\n\r\nabc");
 

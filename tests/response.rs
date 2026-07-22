@@ -58,7 +58,7 @@ fn text_plain_response_adds_its_trusted_content_type() {
 
 #[test]
 fn valid_custom_header_is_serialized() {
-    let mut response = Response::new(StatusCode::Ok, b"abc".to_vec());
+    let response = Response::new(StatusCode::Ok, b"abc".to_vec());
     response
         .add_header("X-Test", "yes")
         .expect("valid response header should be accepted");
@@ -73,7 +73,7 @@ fn valid_custom_header_is_serialized() {
 #[test]
 fn add_header_rejects_cr_or_lf_in_header_name() {
     for name in ["X-Test\rInjected", "X-Test\nInjected"] {
-        let mut response = Response::new(StatusCode::Ok, b"ok".to_vec());
+        let response = Response::new(StatusCode::Ok, b"ok".to_vec());
         let result = response.add_header(name, "safe");
 
         assert!(
@@ -90,7 +90,7 @@ fn add_header_rejects_cr_or_lf_in_header_value() {
         "safe\nInjected: yes",
         "safe\r\nInjected: yes",
     ] {
-        let mut response = Response::new(StatusCode::Ok, b"ok".to_vec());
+        let response = Response::new(StatusCode::Ok, b"ok".to_vec());
         let result = response.add_header("X-Test", value);
 
         assert!(
@@ -113,7 +113,7 @@ fn add_header_rejects_serializer_owned_framing_headers_case_insensitively() {
         "connection",
         "cOnNeCtIoN",
     ] {
-        let mut response = Response::new(StatusCode::Ok, b"ok".to_vec());
+        let response = Response::new(StatusCode::Ok, b"ok".to_vec());
         let result = response.add_header(name, "invalid");
 
         assert!(
@@ -125,11 +125,13 @@ fn add_header_rejects_serializer_owned_framing_headers_case_insensitively() {
 
 #[test]
 fn rejected_header_is_not_serialized() {
-    let mut response = Response::new(StatusCode::Ok, b"ok".to_vec());
+    let response = Response::new(StatusCode::Ok, b"ok".to_vec());
 
-    assert!(response
-        .add_header("X-Test", "safe\r\nInjected: yes")
-        .is_err());
+    assert!(
+        response
+            .add_header("X-Test", "safe\r\nInjected: yes")
+            .is_err()
+    );
 
     let serialized = String::from_utf8(response.to_bytes()).unwrap();
 

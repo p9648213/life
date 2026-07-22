@@ -67,13 +67,14 @@ impl<'server> Server<'server> {
             if expected_length.is_none() {
                 while index + 4 <= data.len() && expected_length.is_none() {
                     if data.get(index..index + 4) == Some(&[13, 10, 13, 10]) {
-                        let header = str::from_utf8(&data[..index])
+                        let headers = str::from_utf8(&data[..index])
                             .map_err(|err| Error::other(err.to_string()))?;
-                        for (line_index, line) in header.lines().enumerate() {
-                            if line_index == 0 {
+                        let headers_iters = headers.split("\r\n");
+                        for (header_index, header) in headers_iters.enumerate() {
+                            if header_index == 0 {
                                 continue;
                             }
-                            if let Some((name, value)) = line.split_once(":")
+                            if let Some((name, value)) = header.split_once(":")
                                 && name.trim().eq_ignore_ascii_case(CONTENT_LENGTH)
                             {
                                 let value = value

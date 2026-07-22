@@ -16,7 +16,6 @@ pub enum HttpError {
     RequestRouteInvalid,
     FormParseError,
     FormMissingField(String),
-    FormFieldMissingValue,
     FormFieldMissingName,
 }
 
@@ -66,9 +65,6 @@ impl fmt::Display for HttpError {
             }
             HttpError::FormMissingField(field) => {
                 write!(f, "Form Missing Field: {}", field)
-            }
-            HttpError::FormFieldMissingValue => {
-                write!(f, "Form Field Missing Value")
             }
             HttpError::FormFieldMissingName => {
                 write!(f, "Form Field Missing Name")
