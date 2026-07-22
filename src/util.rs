@@ -40,7 +40,7 @@ pub fn decode_form(input: &[u8]) -> Result<String, HttpError> {
                     .get(index + 2)
                     .and_then(|byte| decode_hex(*byte))
                     .ok_or(HttpError::FormParseError)?;
-                // Hex 2B = 2 * 16^1 + B * 16^0 = 32 + 11 * 2^0 = 43(+) 
+                // Hex 2B = 2 * 16^1 + B * 16^0 = 32 + 11 * 2^0 = 43(+)
                 decoded.push(high * 16 + low);
                 index += 3;
             }

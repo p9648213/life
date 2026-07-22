@@ -164,16 +164,16 @@ fn reports_the_missing_required_form_field() {
 }
 
 #[test]
-fn allows_empty_unrequested_form_field() {
+fn preserves_empty_form_field_value() {
     let bytes = form_request(
         b"required=ok&optional=",
         "application/x-www-form-urlencoded",
     );
     let request = parse_ok(&bytes);
 
-    let values = request.extract_form(["required"]).unwrap();
+    let values = request.extract_form(["optional"]).unwrap();
 
-    assert_eq!(values, ["ok"]);
+    assert_eq!(values, [""]);
 }
 
 #[test]

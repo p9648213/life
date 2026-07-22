@@ -226,7 +226,7 @@ impl<'buf> Request<'buf> {
             if let Some(content_type) = content_type.next()
                 && content_type.trim().eq_ignore_ascii_case(FORM_CONTENT_TYPE)
             {
-                let body_utf8 = str::from_utf8(self.body())?.trim();
+                let body_utf8 = str::from_utf8(self.body())?;
                 let mut form_map = HashMap::new();
                 let name_value_slice = body_utf8.split("&");
                 for name_value in name_value_slice {

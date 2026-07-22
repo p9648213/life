@@ -32,12 +32,14 @@ Early code often uses `unwrap` or `expect`. That is fine for exploration, but yo
 5. Convert errors into HTTP responses.
 6. Log internal details server-side.
 7. Show safe messages to users.
+8. Keep unsupported body formats distinct from malformed data in a supported format. For example, a form endpoint should map a missing or unsupported `Content-Type` to `415 Unsupported Media Type`, while malformed `application/x-www-form-urlencoded` data remains a `400 Bad Request`.
 
 ## Suggested Mapping
 
 ```text
 Malformed request       -> 400
 Invalid form            -> 400
+Unsupported media type  -> 415
 Missing page            -> 404
 Wrong method            -> 405
 Body too large          -> 413
@@ -58,4 +60,4 @@ You are done when:
 - Invalid input does not panic.
 - Storage failures are not reported as success.
 - Error responses use reasonable status codes.
-
+- Tests distinguish an unsupported request `Content-Type` (`415`) from malformed data in a supported format (`400`).
