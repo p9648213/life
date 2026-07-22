@@ -74,17 +74,20 @@ impl<'server> Server<'server> {
                             if header_index == 0 {
                                 continue;
                             }
-                            if let Some((name, value)) = header.split_once(":")
-                                && name.trim().eq_ignore_ascii_case(CONTENT_LENGTH)
-                            {
-                                let value = value
-                                    .trim()
-                                    .parse::<usize>()
-                                    .map_err(|err| Error::other(err.to_string()))?;
-                                let sum = value
-                                    .checked_add(index + 4)
-                                    .ok_or_else(|| Error::other("Request size overflow"))?;
-                                expected_length = Some(sum);
+                            if let Some((name, value)) = header.split_once(":") {
+                                if name.is_empty() || name.contains(' ') {
+                                    return Err(Error::other("Request header invalid"));
+                                }
+                                if name.eq_ignore_ascii_case(CONTENT_LENGTH) {
+                                    let value = value
+                                        .trim()
+                                        .parse::<usize>()
+                                        .map_err(|err| Error::other(err.to_string()))?;
+                                    let sum = value
+                                        .checked_add(index + 4)
+                                        .ok_or_else(|| Error::other("Request size overflow"))?;
+                                    expected_length = Some(sum);
+                                }
                             }
                         }
                         if expected_length.is_none() {
