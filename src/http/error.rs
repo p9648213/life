@@ -14,6 +14,7 @@ pub enum HttpError {
     RequestLineInvalid,
     RequestHttpVersionInvalid,
     RequestRouteInvalid,
+    RequestAddInvalidHeader(String),
     FormParseError,
     FormMissingField(String),
     FormFieldMissingName,
@@ -50,6 +51,9 @@ impl fmt::Display for HttpError {
             }
             HttpError::RequestHeaderInvalid => {
                 write!(f, "Invalid Header")
+            }
+            HttpError::RequestAddInvalidHeader(header) => {
+                write!(f, "Add Invalid Header: {}", header)
             }
             HttpError::RequestLineInvalid => {
                 write!(f, "Invalid Request Line")

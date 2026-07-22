@@ -122,7 +122,7 @@ impl<'buf> Request<'buf> {
 
     fn parse_request_line(request_line_bytes: &'buf [u8]) -> Result<RequestLine<'buf>, HttpError> {
         let rl = str::from_utf8(request_line_bytes)?;
-        let mut rl_iter = rl.split_whitespace();
+        let mut rl_iter = rl.split(' ');
         let method = Self::parse_method(rl_iter.next().unwrap_or_default())?;
         let target_path = rl_iter.next().unwrap_or_default();
         let version = rl_iter.next().unwrap_or_default();
@@ -140,26 +140,60 @@ impl<'buf> Request<'buf> {
     fn parse_header(
         header_bytes: &'buf [u8],
     ) -> Result<(Option<ContentLength>, HashMap<String, &'buf str>), HttpError> {
-        let headers = str::from_utf8(header_bytes)?;
-        let headers_iters = headers.split("\r\n");
         let mut headers_map = HashMap::new();
         let mut content_length = None;
-        for header in headers_iters {
-            if let Some((name, value)) = header.split_once(":") {
-                let name = name.trim();
-                let value = value.trim();
-                if name.is_empty() {
+        let mut header_start_index = 0;
+        let mut index = 0;
+        while index < header_bytes.len() {
+            if header_bytes[index] == 13 {
+                if header_bytes.get(index + 1) == Some(&10) {
+                    let header = str::from_utf8(&header_bytes[header_start_index..index])?;
+                    Self::extract_header_name_value_to_header_map(
+                        header,
+                        &mut content_length,
+                        &mut headers_map,
+                    )?;
+                    header_start_index = index + 2;
+                    index += 2;
+                    continue;
+                } else {
                     return Err(HttpError::RequestHeaderInvalid);
                 }
-                headers_map.insert(name.to_ascii_uppercase(), value);
-                if name.eq_ignore_ascii_case(CONTENT_LENGTH) {
-                    content_length = Some(ContentLength(value.parse::<usize>()?));
-                }
-            } else {
+            }
+            if header_bytes[index] == 10 {
                 return Err(HttpError::RequestHeaderInvalid);
             }
+            if index == header_bytes.len() - 1 {
+                let header = str::from_utf8(&header_bytes[header_start_index..index + 1])?;
+                Self::extract_header_name_value_to_header_map(
+                    header,
+                    &mut content_length,
+                    &mut headers_map,
+                )?;
+            }
+            index += 1;
         }
         Ok((content_length, headers_map))
+    }
+
+    fn extract_header_name_value_to_header_map(
+        header: &'buf str,
+        content_length: &mut Option<ContentLength>,
+        headers_map: &mut HashMap<String, &'buf str>,
+    ) -> Result<(), HttpError> {
+        if let Some((name, value)) = header.split_once(":") {
+            let value = value.trim();
+            if name.is_empty() || name.contains(' ') {
+                return Err(HttpError::RequestHeaderInvalid);
+            }
+            headers_map.insert(name.to_ascii_uppercase(), value);
+            if name.eq_ignore_ascii_case(CONTENT_LENGTH) {
+                *content_length = Some(ContentLength(value.parse::<usize>()?));
+            }
+        } else {
+            return Err(HttpError::RequestHeaderInvalid);
+        }
+        Ok(())
     }
 
     fn parse_query(target_path: &str) -> Result<(&str, HashMap<&str, &str>), HttpError> {

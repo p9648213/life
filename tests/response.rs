@@ -57,8 +57,23 @@ fn text_plain_response_adds_its_trusted_content_type() {
 }
 
 #[test]
+fn set_header_replaces_existing_content_type_case_insensitively() {
+    let mut response = Response::html(StatusCode::Ok, "<h1>Hello</h1>");
+
+    response
+        .set_header("content-type", "application/xhtml+xml")
+        .expect("valid response header should replace the existing value");
+
+    let serialized = String::from_utf8(response.to_bytes()).unwrap();
+    let normalized = serialized.to_ascii_lowercase();
+
+    assert_eq!(normalized.matches("content-type:").count(), 1);
+    assert!(normalized.contains("content-type: application/xhtml+xml\r\n"));
+}
+
+#[test]
 fn valid_custom_header_is_serialized() {
-    let response = Response::new(StatusCode::Ok, b"abc".to_vec());
+    let mut response = Response::new(StatusCode::Ok, b"abc".to_vec());
     response
         .add_header("X-Test", "yes")
         .expect("valid response header should be accepted");
@@ -73,7 +88,7 @@ fn valid_custom_header_is_serialized() {
 #[test]
 fn add_header_rejects_cr_or_lf_in_header_name() {
     for name in ["X-Test\rInjected", "X-Test\nInjected"] {
-        let response = Response::new(StatusCode::Ok, b"ok".to_vec());
+        let mut response = Response::new(StatusCode::Ok, b"ok".to_vec());
         let result = response.add_header(name, "safe");
 
         assert!(
@@ -90,7 +105,7 @@ fn add_header_rejects_cr_or_lf_in_header_value() {
         "safe\nInjected: yes",
         "safe\r\nInjected: yes",
     ] {
-        let response = Response::new(StatusCode::Ok, b"ok".to_vec());
+        let mut response = Response::new(StatusCode::Ok, b"ok".to_vec());
         let result = response.add_header("X-Test", value);
 
         assert!(
@@ -113,7 +128,7 @@ fn add_header_rejects_serializer_owned_framing_headers_case_insensitively() {
         "connection",
         "cOnNeCtIoN",
     ] {
-        let response = Response::new(StatusCode::Ok, b"ok".to_vec());
+        let mut response = Response::new(StatusCode::Ok, b"ok".to_vec());
         let result = response.add_header(name, "invalid");
 
         assert!(
@@ -125,7 +140,7 @@ fn add_header_rejects_serializer_owned_framing_headers_case_insensitively() {
 
 #[test]
 fn rejected_header_is_not_serialized() {
-    let response = Response::new(StatusCode::Ok, b"ok".to_vec());
+    let mut response = Response::new(StatusCode::Ok, b"ok".to_vec());
 
     assert!(
         response

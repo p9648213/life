@@ -1,5 +1,5 @@
 use crate::{
-    constant::{CONTENT_LENGTH, CONTENT_TYPE},
+    constant::{CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING},
     http::error::HttpError,
 };
 
@@ -69,7 +69,39 @@ impl<'header> Response<'header> {
         response
     }
 
-    pub fn add_header(&self, name: &str, value: &str) -> Result<(), HttpError> {
+    pub fn add_header(&mut self, name: &'header str, value: &'header str) -> Result<(), HttpError> {
+        for byte in [name, value].concat().bytes() {
+            if byte == 13 || byte == 10 {
+                return Err(HttpError::RequestHeaderInvalid);
+            }
+        }
+        if name.eq_ignore_ascii_case(CONTENT_LENGTH)
+            || name.eq_ignore_ascii_case(TRANSFER_ENCODING)
+            || name.eq_ignore_ascii_case(CONNECTION)
+        {
+            return Err(HttpError::RequestAddInvalidHeader(name.to_owned()));
+        }
+        self.headers.push((name, value));
+        Ok(())
+    }
+
+    pub fn set_header(&mut self, name: &'header str, value: &'header str) -> Result<(), HttpError> {
+        for byte in [name, value].concat().bytes() {
+            if byte == 13 || byte == 10 {
+                return Err(HttpError::RequestHeaderInvalid);
+            }
+        }
+        if name.eq_ignore_ascii_case(CONTENT_LENGTH)
+            || name.eq_ignore_ascii_case(TRANSFER_ENCODING)
+            || name.eq_ignore_ascii_case(CONNECTION)
+        {
+            return Err(HttpError::RequestAddInvalidHeader(name.to_owned()));
+        }
+        for (header_name, header_value) in self.headers.iter_mut() {
+            if header_name.eq_ignore_ascii_case(name) {
+                *header_value = value
+            }
+        }
         Ok(())
     }
 
