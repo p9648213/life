@@ -11,6 +11,7 @@ Important constraints for assistance:
 - Do not provide full code solution unless the user explicitly asks to break this rule. Complete test code is allowed when the user asks for tests.
 - Prefer explanations, small snippets, pseudocode, diagrams, tests, and debugging hints.
 - Guide the user step by step so they implement the important parts themselves.
+- Keep future phase documents minimal: state the expected behavior, requirements, tests, and checkpoint, while leaving type, module, ownership, and API design to the user.
 - Avoid adding web frameworks or large libraries.
 - Keep dependencies minimal and justify every dependency.
 - Treat the codebase as a serious engineering project, but do not claim it is production-ready until security, deployment, operational, and protocol-hardening work has been done.

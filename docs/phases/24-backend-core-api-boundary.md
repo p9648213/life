@@ -1,56 +1,36 @@
 # Phase 24: Backend Core API Boundary
 
-Goal: make real application code sit on top of the backend core cleanly.
+Goal: make application code depend on a small, explicit backend-core API.
 
-This is where the project stops being a sequence of demos and becomes a reusable backend foundation for your own app.
+Design the final module and public API structure yourself.
 
-## What to Learn
+## Expected Behavior
 
-- Public versus private APIs
-- Handler signatures
-- App context
-- Dependency direction
-- Stable module boundaries
-- Avoiding framework-style hidden control flow
+A small application can register routes, receive requests and application context, and return responses without changing TCP, parsing, or serialization code.
 
-## Where to Look
+## Requirements
 
-- Rust visibility: https://doc.rust-lang.org/reference/visibility-and-privacy.html
-- Rust modules: https://doc.rust-lang.org/book/ch07-02-defining-modules-to-control-scope-and-privacy.html
-- Trait objects, later if needed: https://doc.rust-lang.org/book/ch17-02-trait-objects.html
+- Make dependency direction point from application code toward backend core.
+- Keep `TcpStream` out of router and application handlers.
+- Keep application records, storage choices, and business rules out of HTTP parsing and response modules.
+- Expose only types and operations required by application code.
+- Keep fields private when invariants require controlled mutation.
+- Preserve explicit request flow; avoid framework-style hidden global registration or implicit extraction.
+- Keep error boundaries and ownership understandable from function signatures.
+- Do not generalize an API until at least one real application need justifies it.
+- Remove or keep private obsolete phase-demo surfaces.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. Draw the current request flow.
-2. Mark which modules are backend core.
-3. Mark which modules are app-specific.
-4. Decide what a handler receives.
-5. Decide what a handler returns.
-6. Keep the router independent of `TcpStream`.
-7. Keep app storage choices out of the parser and response builder.
-8. Write a small example app layer using the public boundary.
-
-## Boundary Test
-
-Ask this before adding any public API:
-
-```text
-Does the backend core need this, or does one app want this?
-```
-
-If only one app wants it, keep it in app code.
-
-## Questions to Answer
-
-- Which types should be public?
-- Which fields should stay private behind accessors?
-- Can the app add routes without changing connection code?
-- Can storage change without changing the parser?
+- a small example application can use only the public boundary;
+- replacing the sample application does not alter TCP or parsing code;
+- replacing storage does not alter request parsing or response serialization;
+- handlers can be tested without sockets;
+- private invariants cannot be bypassed through public fields;
+- core modules do not import application modules.
 
 ## Checkpoint
 
-You are done when:
+You are done when the backend core has a small public surface, application-specific code is easy to identify, and control flow remains explicit.
 
-- The backend core has a small public surface.
-- App-specific code is easy to find.
-- Replacing the sample app does not require rewriting TCP, parsing, or response code.
+After this, continue with [Phase 25: Security and Deployment Boundary](25-security-deployment-boundary.md).

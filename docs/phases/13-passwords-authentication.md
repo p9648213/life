@@ -1,55 +1,38 @@
 # Phase 13: Passwords and Authentication
 
-Goal: understand authentication flow without implementing unsafe crypto.
+Goal: add registration and login without implementing unsafe cryptography.
 
-This is the main exception to the from-scratch rule. Do not write your own password hashing.
+Design the user model and authorization boundary yourself.
 
-## What to Learn
+## Expected Behavior
 
-- Registration
-- Login
-- Password hashing
-- Salt
-- Password verification
-- Authentication versus authorization
+A user can register, log in through a session, access a protected sample action, and log out. Failed authentication does not reveal whether a particular account exists.
 
-## Where to Look
+## Requirements
 
-- OWASP password storage: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
-- RustCrypto password hashes: https://github.com/RustCrypto/password-hashes
+- Use a proven password-hashing library such as Argon2; do not implement hashing yourself.
+- Store only password hashes, never raw passwords.
+- Use the library's salt generation and verification APIs.
+- Validate and bound usernames and passwords before expensive work.
+- Do not use plain SHA-256 or reversible encryption for password storage.
+- Do not log passwords, hashes, or session secrets.
+- Use generic login failure messages.
+- Rotate the session ID after successful login.
+- Keep authentication and application authorization decisions distinct.
+- Document rate-limiting needs even if enforcement comes later.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. Add a user type.
-2. Add a registration form.
-3. Validate username and password.
-4. Hash password with a proven crate such as `argon2`.
-5. Store only the hash.
-6. Add a login form.
-7. Verify submitted password against stored hash.
-8. On success, create a session.
-9. Protect one sample write route behind login.
-
-## Do Not Do This
-
-- Do not store raw passwords.
-- Do not use plain SHA-256 for passwords.
-- Do not invent your own hashing function.
-- Do not put passwords in logs.
-
-## Questions to Answer
-
-- Why is a password hash different from encryption?
-- What is a salt?
-- What is the difference between authentication and authorization?
-- Which routes require login?
-- Which authorization decisions belong in app code rather than backend core?
+- registration stores a verifiable hash rather than the password;
+- correct credentials authenticate;
+- incorrect credentials fail without creating authenticated state;
+- protected actions reject unauthenticated sessions;
+- login rotates the session ID;
+- logout removes authenticated state;
+- secrets do not appear in normal diagnostic output.
 
 ## Checkpoint
 
-You are done when:
+You are done when authentication uses a proven password-hashing implementation, protected actions require authorization, and raw credentials are never stored or logged.
 
-- Users can register.
-- Users can log in.
-- Protected write routes require authentication.
-- Raw passwords are never stored.
+After this, continue with [Phase 14: Error Handling](14-error-handling.md).

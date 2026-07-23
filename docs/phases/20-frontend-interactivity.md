@@ -1,45 +1,35 @@
 # Phase 20: Frontend Interactivity Adapter
 
-Goal: add a small amount of browser-side behavior without replacing the app.
+Goal: progressively enhance one browser workflow without replacing the server-rendered application.
 
-The server-rendered or API-backed app should continue to work without requiring a frontend framework in the backend core.
+Design the JavaScript organization and UI behavior yourself.
 
-## What to Learn
+## Expected Behavior
 
-- DOM events
-- `fetch`
-- Progressive enhancement
-- Client-side state
-- Server-side state
+One form can submit through `fetch` and display success or validation feedback. The same workflow still works through normal browser submission when JavaScript is unavailable.
 
-## Where to Look
+## Requirements
 
-- MDN DOM: https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model
-- MDN events: https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Building_blocks/Events
-- MDN Fetch API: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
+- Serve a small JavaScript file from a static route with the correct content type.
+- Use browser APIs directly; do not add a frontend framework for this phase.
+- Keep server-side validation authoritative.
+- Preserve normal form action and method behavior.
+- Handle network, non-JSON, validation, and server failures visibly.
+- Avoid rendering untrusted strings through unsafe HTML insertion.
+- Prevent accidental duplicate submissions while a request is active.
+- Keep browser state separate from persistent server state.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. Serve a JavaScript file from `/static/app.js`.
-2. Add a tiny enhancement to one sample form.
-3. Submit with `fetch`.
-4. Show success or validation errors.
-5. Keep normal form submission working if JavaScript fails.
-
-## Scope Rule
-
-Do not add a frontend framework for this phase. The goal is to understand the browser APIs directly.
-
-## Questions to Answer
-
-- What still works with JavaScript disabled?
-- Which state is stored in the browser?
-- Which state is stored on the server?
-- What changes when using `fetch` instead of normal form submission?
+- the script is served with the correct content type;
+- normal form submission still works without JavaScript;
+- enhanced submission handles success and validation errors;
+- network and unexpected server responses remain recoverable;
+- user-controlled text is inserted safely;
+- one user action does not create duplicate requests.
 
 ## Checkpoint
 
-You are done when:
+You are done when one workflow is enhanced without making JavaScript mandatory or moving application authority into the browser.
 
-- One workflow is enhanced with JavaScript.
-- The app still works without JavaScript.
+After this, continue with [Phase 21: Configuration and Runtime Limits](21-configuration-runtime-limits.md).

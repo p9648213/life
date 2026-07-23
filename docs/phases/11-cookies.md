@@ -1,61 +1,35 @@
 # Phase 11: Cookies
 
-Goal: understand browser-stored state sent by HTTP headers.
+Goal: understand browser-stored state carried through HTTP headers.
 
-Cookies are not magic. The server sends `Set-Cookie`; the browser later sends `Cookie`.
+Design the cookie representation and parsing API yourself.
 
-## What to Learn
+## Expected Behavior
 
-- `Set-Cookie` response header
-- `Cookie` request header
-- Cookie attributes
-- `HttpOnly`
-- `SameSite`
-- Expiration
+The server can send a `Set-Cookie` header, the browser returns the cookie in a later `Cookie` request header, and a handler can read a simple cookie value.
 
-## Where to Look
+## Requirements
 
-- MDN cookies: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
-- MDN Set-Cookie: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
-- MDN Cookie: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cookie
+- Support simple `name=value` pairs separated by semicolons.
+- Trim optional whitespace around pairs.
+- Split each pair on the first `=`.
+- Define behavior for malformed and duplicate cookie names.
+- Set appropriate attributes such as `HttpOnly` and `SameSite=Lax`.
+- Add `Secure` when cookies travel over HTTPS.
+- Reject CR/LF in response header values.
+- Bound parser work by the existing header limits.
+- Do not treat a client-provided cookie as proof of identity.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. Add a response header:
-
-```text
-Set-Cookie: visited=yes; HttpOnly; SameSite=Lax
-```
-
-2. Reload the page in a browser.
-3. Inspect request headers and find `Cookie`.
-4. Add cookie parsing for simple `name=value` pairs.
-5. Show different content when `visited=yes` exists.
-
-## Cookie Parser Scope
-
-Support simple cookies:
-
-```text
-Cookie: visited=yes; theme=light
-```
-
-You can split on `;`, trim spaces, then split each pair on the first `=`.
-
-Document limitations.
-
-## Questions to Answer
-
-- What is the difference between `Set-Cookie` and `Cookie`?
-- Where is the cookie stored?
-- Why is `HttpOnly` useful?
-- Why does a cookie not prove identity by itself?
+- one and multiple cookies parse correctly;
+- values containing `=` follow the documented behavior;
+- whitespace, malformed pairs, and duplicates follow policy;
+- `Set-Cookie` serializes required attributes;
+- header injection is rejected.
 
 ## Checkpoint
 
-You are done when:
+You are done when the server can safely set and parse the documented cookie subset and you can explain its limitations.
 
-- Server can set a cookie.
-- Browser sends it on later requests.
-- Server can parse it.
-
+After this, continue with [Phase 12: Sessions](12-sessions.md).

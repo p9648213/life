@@ -1,47 +1,32 @@
 # Phase 08: Redirects
 
-Goal: use normal web behavior after form submissions.
+Goal: use Post/Redirect/Get after successful form submissions.
 
-After a successful `POST`, a web app usually redirects to a `GET` page. This is called Post/Redirect/Get.
+Design the response API and route flow yourself.
 
-## What to Learn
+## Expected Behavior
 
-- `Location` header
-- `303 See Other`
-- Browser redirect behavior
-- Avoiding duplicate form submission
+A successful resource `POST` returns `303 See Other` with a `Location` header pointing to a suitable `GET` route. Following the redirect shows the result, and refreshing that page does not resubmit the form.
 
-## Where to Look
+## Requirements
 
-- MDN redirects: https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections
-- MDN 303: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303
+- Serialize the `303 See Other` status correctly.
+- Include one valid `Location` response header.
+- Use an empty or small fallback body.
+- Redirect only after the mutation succeeds.
+- Keep validation failures as normal error responses.
+- Do not allow untrusted header values to inject CR or LF.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. Create a response helper for redirects.
-2. Set status to `303 See Other`.
-3. Add `Location: /resources` or `Location: /resources/{id}` for the sample route.
-4. Use an empty body or a tiny fallback body.
-5. After creating a sample record, return this redirect response.
-
-## Experiments
-
-```bash
-curl -i -X POST http://127.0.0.1:8080/demo/form -d "name=A&message=B"
-curl -L -i -X POST http://127.0.0.1:8080/demo/form -d "name=A&message=B"
-```
-
-Then try in the browser and refresh after submission.
-
-## Questions to Answer
-
-- Why use redirect after POST?
-- What does `Location` contain?
-- Why is `303` a good fit for form submission?
+- a redirect serializes status `303` and `Location`;
+- successful creation redirects;
+- invalid creation does not redirect;
+- redirect headers reject CR/LF injection;
+- following the redirect reaches a `GET` response.
 
 ## Checkpoint
 
-You are done when:
+You are done when successful form submission redirects to a readable result and refreshing that result does not repeat the mutation.
 
-- Creating a sample record redirects.
-- Refreshing the result page does not resubmit the form.
+After this, continue with [Phase 09: File-Backed Storage](09-file-backed-storage.md).

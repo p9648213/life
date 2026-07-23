@@ -1,58 +1,38 @@
 # Phase 25: Security and Deployment Boundary
 
-Goal: document what is safe, what is not safe yet, and how the backend should be exposed.
+Goal: define what is safe, what remains unsafe, and how the application may be exposed.
 
-Serious code is not automatically production-safe. This phase separates engineering quality from internet-hardening.
+Design the deployment topology and operational documents yourself.
 
-## What to Learn
+## Expected Behavior
 
-- Threat modeling
-- Reverse proxies
-- TLS termination
-- Header trust boundaries
-- Secrets
-- Rate limiting
-- Backup and restore
-- Safe error messages
+The project has an evidence-based go/no-go checklist for public exposure, including trust boundaries, secrets, TLS, resource controls, data recovery, and known unsupported behavior.
 
-## Where to Look
+## Requirements
 
-- OWASP Top 10: https://owasp.org/www-project-top-ten/
-- OWASP Cheat Sheet Series: https://cheatsheetseries.owasp.org/
-- Mozilla TLS guidance: https://wiki.mozilla.org/Security/Server_Side_TLS
+- Identify assets, entry points, trust boundaries, attackers, and abuse cases.
+- Document what unauthenticated and authenticated users can do.
+- Put public TLS behind a proven implementation; do not write cryptography yourself.
+- Trust proxy headers only from a configured trusted proxy boundary.
+- Define host, forwarded-address, and scheme handling.
+- Keep secrets out of source, logs, responses, and backups shared insecurely.
+- Document request, timeout, concurrency, session, and rate limits.
+- Run with least privilege and define writable filesystem locations.
+- Define database or file backup, restore, retention, and restore testing.
+- Define startup, shutdown, health checking, rollback, and failure recovery.
+- List unsupported HTTP behavior and remaining security risks.
+- Do not claim production readiness without testing the complete deployed path.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. List what the server accepts from users.
-2. List what data must be protected.
-3. List what happens if the process crashes.
-4. Decide whether a reverse proxy terminates TLS.
-5. Document which headers are trusted only from the proxy.
-6. Document backup and restore for persistent data.
-7. Document known unsupported HTTP behavior.
-8. Write a "not safe for public internet until" checklist.
-
-## Do Not Skip
-
-- Do not expose raw password handling without proven password hashing.
-- Do not run public TLS with homemade crypto.
-- Do not trust proxy headers from arbitrary clients.
-- Do not log secrets or passwords.
-- Do not claim production readiness without a rollback and restore path.
-
-## Questions to Answer
-
-- What can an unauthenticated user do?
-- What happens if a request is huge or slow?
-- Where are secrets stored?
-- What must be backed up?
-- What is handled by a reverse proxy instead of this Rust process?
+- direct clients cannot spoof trusted proxy identity;
+- TLS and security headers are verified at the deployed edge;
+- secrets are absent from logs and error responses;
+- resource limits work in the deployed topology;
+- backup restoration is tested on an isolated destination;
+- restart and rollback preserve required data;
+- unauthenticated access matches the documented policy.
 
 ## Checkpoint
 
-You are done when:
-
-- Remaining public-deployment risks are written down.
-- TLS and password hashing are delegated to proven tools.
-- Persistent data has a backup and restore plan.
-- The app has a clear go/no-go checklist before public exposure.
+You are done when public-exposure risks are written down, proven tools own TLS and password hashing, recovery has been tested, and the deployment has a clear go/no-go decision.

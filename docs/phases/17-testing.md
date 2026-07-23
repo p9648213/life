@@ -1,64 +1,38 @@
 # Phase 17: Testing
 
-Goal: make your low-level code safer to change.
+Goal: make the backend safe to change through deterministic automated tests.
 
-The best parts to test are pure functions: parsers, serializers, route matching, escaping, and storage format conversion.
+Design the test layout and helpers yourself.
 
-## What to Learn
+## Expected Behavior
 
-- Unit tests
-- Integration tests
-- Test fixtures
-- Edge cases
-- Round-trip tests
+`cargo test` verifies the important HTTP, application, persistence, and concurrency contracts without requiring every test to use a real socket or browser.
 
-## Where to Look
+## Requirements
 
-- Rust testing: https://doc.rust-lang.org/book/ch11-00-testing.html
-- Cargo tests: https://doc.rust-lang.org/cargo/commands/cargo-test.html
+- Prefer pure tests for parsing, serialization, routing, escaping, and storage conversion.
+- Cover valid, invalid, boundary, and adversarial inputs.
+- Add a regression test for every fixed bug.
+- Test both results and state invariants after failures.
+- Test persistence with isolated temporary locations.
+- Keep a small number of end-to-end socket tests for integration boundaries.
+- Make tests deterministic; avoid timing guesses when synchronization or work-count invariants are possible.
+- Treat unexpectedly slow maximum-size tests as possible complexity bugs.
+- Keep fixtures bounded and understandable.
 
-## What to Test First
+## Tests to Write
 
-Prioritize:
-
-- Response serialization
-- Request parsing
-- Form parsing
-- HTML escaping
-- Route matching
-- Storage load/save round trips
-
-## Step-by-Step Work
-
-1. Add tests beside the functions they test.
-2. Test one valid case.
-3. Test one invalid case.
-4. Test boundary cases.
-5. Add regression tests when you fix bugs.
-
-## Example Test Ideas
-
-No full code, but test names may look like:
-
-```text
-parses_get_request_line
-rejects_missing_http_version
-escapes_script_tag_as_text
-decodes_plus_as_space
-serializes_content_length_as_body_bytes
-storage_round_trips_record
-```
-
-## Questions to Answer
-
-- Which code is hard to test because it mixes too many responsibilities?
-- Which bugs did tests catch?
-- Which behavior still requires browser testing?
+- request and response framing round-trips where applicable;
+- parser rejection cases do not panic;
+- routing distinguishes path and method outcomes;
+- form decoding and HTML escaping cover boundary inputs;
+- storage round-trips and rejects corruption;
+- session and authentication invariants hold;
+- concurrent mutations preserve state;
+- configured limits work at just-below, exact, and just-above boundaries.
 
 ## Checkpoint
 
-You are done when:
+You are done when the critical contracts have deterministic regression coverage and failures identify the responsible boundary clearly.
 
-- `cargo test` runs.
-- Core parsers have valid and invalid tests.
-- HTML escaping has tests.
+After this, continue with [Phase 18: Database Layer](18-database-layer.md).

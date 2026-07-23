@@ -1,57 +1,33 @@
 # Phase 10: Static Files and CSS
 
-Goal: serve a small CSS file yourself.
+Goal: serve static assets with correct HTTP metadata and safe path handling.
 
-This teaches file serving, MIME types, and path safety.
+Design the static-file boundary yourself.
 
-## What to Learn
+## Expected Behavior
 
-- Static assets
-- MIME types
-- Path traversal
-- Cache headers later
+The browser can request a known CSS file from the server, receive its bytes with the correct content type, and use it in rendered HTML.
 
-## Where to Look
+## Requirements
 
-- MDN MIME types: https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types
-- Rust paths: https://doc.rust-lang.org/std/path/
-- Rust fs: https://doc.rust-lang.org/std/fs/
+- Support `GET /static/app.css`.
+- Return `Content-Type: text/css; charset=utf-8`.
+- Return `404 Not Found` when the file is missing.
+- Do not accept arbitrary filesystem paths in this phase.
+- If generalized later, confine normalized paths to the static root and reject traversal, absolute paths, and platform-specific escape forms.
+- Bound the size of files read into memory.
+- Keep static-file handling separate from application state.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. Create `static/app.css`.
-2. Add a route for `GET /static/app.css`.
-3. Read the file bytes.
-4. Return `Content-Type: text/css; charset=utf-8`.
-5. Link the stylesheet in your HTML layout.
-6. Return 404 if the file is missing.
-
-## Safety Rule
-
-Do not allow arbitrary paths yet.
-
-Avoid supporting this early:
-
-```text
-GET /static/anything-the-user-types
-```
-
-If you later support multiple files:
-
-- Reject `..`.
-- Normalize paths carefully.
-- Only serve files from the static directory.
-
-## Questions to Answer
-
-- Why does the browser need the CSS content type?
-- What is path traversal?
-- Why is serving one known CSS file safer than serving arbitrary paths?
+- the known CSS route returns exact bytes and content type;
+- a missing asset returns `404`;
+- unsupported methods do not serve the file;
+- traversal-like paths cannot read outside the static root;
+- oversized files follow the documented limit.
 
 ## Checkpoint
 
-You are done when:
+You are done when the page loads CSS from your server and user-controlled paths cannot escape the intended static-file boundary.
 
-- Browser loads your CSS from your server.
-- Missing static files return 404.
-
+After this, continue with [Phase 11: Cookies](11-cookies.md).

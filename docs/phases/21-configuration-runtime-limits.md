@@ -1,45 +1,36 @@
 # Phase 21: Configuration and Runtime Limits
 
-Goal: make runtime behavior explicit instead of hard-coded.
+Goal: make runtime behavior and resource limits explicit.
 
-Configuration is not only convenience. It makes limits, addresses, storage paths, and debug behavior visible.
+Design the configuration sources and type structure yourself.
 
-## What to Learn
+## Expected Behavior
 
-- Environment variables
-- Command-line arguments
-- Default configuration
-- Request and body limits
-- Storage paths
-- Debug versus release behavior
+The server can change its bind address, storage paths, timeouts, and resource limits without source edits. Invalid configuration fails before accepting traffic.
 
-## Where to Look
+## Requirements
 
-- Rust environment variables: https://doc.rust-lang.org/std/env/
-- Rust time durations: https://doc.rust-lang.org/std/time/struct.Duration.html
-- `TcpStream` timeouts: https://doc.rust-lang.org/std/net/struct.TcpStream.html
+- Give every configurable value a name, type, default, and validation rule.
+- Include bind address, storage location, request limits, timeouts, concurrency limits, and retained-state limits where relevant.
+- Define precedence when more than one configuration source is supported.
+- Validate cross-field relationships and arithmetic at startup.
+- Fail clearly on missing required or invalid values.
+- Log the effective non-secret configuration.
+- Never log secrets or credentials.
+- Pass configuration explicitly to the components that use it.
+- Re-evaluate algorithmic and memory cost whenever a limit increases.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. List every hard-coded runtime value.
-2. Start with a small config struct.
-3. Move bind address and port into config.
-4. Move request header/body limits into config.
-5. Move storage paths into config.
-6. Validate config at startup.
-7. Print the effective non-secret config at startup.
-
-## Questions to Answer
-
-- Which values should be configurable?
-- Which values should stay compile-time decisions?
-- What should happen when config is invalid?
-- Which values are secrets and must not be logged?
+- defaults produce a valid configuration;
+- explicit values override defaults according to policy;
+- malformed, out-of-range, and conflicting values fail;
+- the server can bind a different configured address;
+- configured limits reach the correct subsystem;
+- secret values are redacted from diagnostics.
 
 ## Checkpoint
 
-You are done when:
+You are done when runtime values are centralized, validated before startup, and observable without exposing secrets.
 
-- The server can run on a different port without editing source code.
-- Limits are named in one place.
-- Invalid config fails during startup.
+After this, continue with [Phase 22: Observability and Diagnostics](22-observability-diagnostics.md).

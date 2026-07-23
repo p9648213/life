@@ -1,47 +1,37 @@
 # Phase 19: JSON API
 
-Goal: support machine-readable API responses as a first-class backend adapter.
+Goal: add a machine-readable adapter alongside the HTML application.
 
-Do this after routing, body parsing, validation, and error mapping are understandable.
+Design the API representation and error envelope yourself.
 
-## What to Learn
+## Expected Behavior
 
-- JSON
-- API routes
-- Status codes
-- Validation
-- Browser `fetch`
+API routes can list and create resources as JSON while existing HTML routes continue to work.
 
-## Where to Look
+## Requirements
 
-- MDN JSON: https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Objects/JSON
-- MDN Fetch API: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
-- MDN Content-Type: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type
+- Support `GET /api/resources` and `POST /api/resources`.
+- Return `Content-Type: application/json`.
+- Validate the request media type before decoding.
+- Distinguish unsupported media type, malformed JSON, and application-invalid data.
+- Return valid JSON for both success and error responses.
+- Escape and serialize strings correctly; use `serde_json` once shapes are non-trivial.
+- Set useful status codes for creation, validation, missing resources, and internal failures.
+- Bound request bodies, collection sizes, and response sizes.
+- Reuse application behavior rather than duplicating rules in the API adapter.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. Add `GET /api/resources`.
-2. Return sample records as JSON.
-3. Set `Content-Type: application/json`.
-4. Add `POST /api/resources`.
-5. Validate request body.
-6. Return useful status codes.
-7. Keep HTML routes working.
-
-## Dependency Rule
-
-At first, build tiny JSON strings only for simple output so you see the format. Once the shape grows, using `serde_json` is reasonable.
-
-## Questions to Answer
-
-- How does an API route differ from an HTML route?
-- Who consumes JSON?
-- What error shape should an API return?
+- list and create responses are valid JSON;
+- content type is correct;
+- malformed JSON and unsupported media types remain distinct;
+- application validation matches the HTML path;
+- strings with quotes, control characters, and Unicode serialize correctly;
+- HTML routes remain unchanged;
+- size limits are enforced.
 
 ## Checkpoint
 
-You are done when:
+You are done when HTML and JSON adapters share application rules, all API responses are valid JSON, and invalid input receives a stable error shape.
 
-- HTML pages still work.
-- API routes return JSON.
-- Invalid API input returns a clear error.
+After this, continue with [Phase 20: Frontend Interactivity Adapter](20-frontend-interactivity.md).

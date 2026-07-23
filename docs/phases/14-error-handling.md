@@ -1,63 +1,36 @@
 # Phase 14: Error Handling
 
-Goal: make failure explicit.
+Goal: turn expected failures into explicit, safe HTTP responses.
 
-Early code often uses `unwrap` or `expect`. That is fine for exploration, but your app should eventually convert failures into clear HTTP responses.
+Design the error types and conversion boundaries yourself.
 
-## What to Learn
+## Expected Behavior
 
-- `Result`
-- Custom error enums
-- Client errors versus server errors
-- Logging
-- Error-to-response conversion
+Invalid client input produces an appropriate client-error response, internal failures produce a server-error response, and expected failures do not panic or get reported as success.
 
-## Where to Look
+## Requirements
 
-- Rust error handling: https://doc.rust-lang.org/book/ch09-00-error-handling.html
-- `Result`: https://doc.rust-lang.org/std/result/
-- MDN HTTP status codes: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+- Keep parsing, routing, form, storage, session, and application errors distinguishable where their meaning differs.
+- Map malformed requests and supported-format validation failures to `400 Bad Request`.
+- Map missing resources to `404 Not Found` and known routes with unsupported methods to `405 Method Not Allowed`.
+- Map oversized bodies to `413 Payload Too Large`.
+- Map missing or unsupported body media types to `415 Unsupported Media Type`.
+- Keep malformed data in a supported media type as `400 Bad Request`.
+- Map unexpected storage and internal failures to `500 Internal Server Error`.
+- Log useful internal context server-side while returning short, safe client messages.
+- Do not leak paths, credentials, session IDs, query secrets, or debug representations.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. List the failure cases in your app.
-2. Group them by area:
-   - parsing
-   - routing
-   - forms
-   - storage
-   - sessions
-3. Decide which ones are client errors.
-4. Decide which ones are server errors.
-5. Convert errors into HTTP responses.
-6. Log internal details server-side.
-7. Show safe messages to users.
-8. Keep unsupported body formats distinct from malformed data in a supported format. For example, a form endpoint should map a missing or unsupported `Content-Type` to `415 Unsupported Media Type`, while malformed `application/x-www-form-urlencoded` data remains a `400 Bad Request`.
-
-## Suggested Mapping
-
-```text
-Malformed request       -> 400
-Invalid form            -> 400
-Unsupported media type  -> 415
-Missing page            -> 404
-Wrong method            -> 405
-Body too large          -> 413
-Storage failure         -> 500
-Unexpected bug          -> 500
-```
-
-## Questions to Answer
-
-- Which errors are caused by bad client input?
-- Which errors are caused by your server?
-- What information should never be shown in the browser?
+- invalid input does not panic;
+- each documented failure maps to the correct status;
+- `415` unsupported media type remains distinct from `400` malformed supported data;
+- storage failures are not reported as success;
+- wrong-method and missing-route behavior remain distinct;
+- internal details do not appear in response bodies.
 
 ## Checkpoint
 
-You are done when:
+You are done when expected errors have consistent status mappings, internal failures are diagnosable server-side, and client responses do not expose sensitive details.
 
-- Invalid input does not panic.
-- Storage failures are not reported as success.
-- Error responses use reasonable status codes.
-- Tests distinguish an unsupported request `Content-Type` (`415`) from malformed data in a supported format (`400`).
+After this, continue with [Phase 15: Concurrency](15-concurrency.md).

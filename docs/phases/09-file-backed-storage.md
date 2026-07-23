@@ -1,68 +1,37 @@
 # Phase 09: File-Backed Storage
 
-Goal: persist app state across server restarts.
+Goal: preserve application state across server restarts.
 
-Before using a database, feel the problems that databases solve.
+Design the storage type, file format, and module layout yourself.
 
-## What to Learn
+## Expected Behavior
 
-- Reading files
-- Writing files
-- Serialization
-- Deserialization
-- Atomic replacement
-- Handling corrupted data
+State loads from a configured file during startup and is saved after successful mutations. A missing file starts with empty state; malformed persisted data produces an explicit failure instead of silently inventing records.
 
-## Where to Look
+## Requirements
 
-- Rust file I/O: https://doc.rust-lang.org/std/fs/
-- Rust `File`: https://doc.rust-lang.org/std/fs/struct.File.html
-- Rust error handling: https://doc.rust-lang.org/book/ch09-00-error-handling.html
+- Define an unambiguous serialization format.
+- Escape or encode field delimiters and line breaks correctly.
+- Preserve IDs and calculate a safe next ID after loading.
+- Enforce the same record and field limits used in memory.
+- Write new data to a temporary file, flush and close it, then rename it over the destination on the same filesystem.
+- Do not report a mutation as successful if persistence fails.
+- Distinguish a missing file from permission, corruption, and other I/O errors.
+- Define what happens to in-memory state when a save fails.
 
-## Storage Format
+## Tests to Write
 
-Start simple. You can invent a line-based format, for example:
-
-```text
-id<TAB>title<TAB>body-with-escaped-newlines
-```
-
-This teaches serialization. Later, using JSON is fine.
-
-## Step-by-Step Work
-
-1. Decide a data file path, for example `data/records.txt`.
-2. On startup, try to read the file.
-3. If the file does not exist, start with empty records.
-4. Parse each line into a record.
-5. After creating, updating, or deleting records, write all records back.
-6. Write to a temporary file first.
-7. Rename the temporary file over the real file.
-8. Handle malformed lines explicitly.
-
-## Why Temporary File Then Rename?
-
-If your process crashes halfway through writing, the real file may be corrupted. A common pattern is:
-
-```text
-write new content to records.txt.tmp
-flush/close it
-rename records.txt.tmp to records.txt
-```
-
-Rename is usually atomic on the same filesystem.
-
-## Questions to Answer
-
-- What happens if the file does not exist?
-- What happens if a line is malformed?
-- What happens if the process crashes while writing?
-- Why is escaping needed in your storage format?
+- empty state round-trips;
+- multiple records round-trip exactly;
+- delimiter, newline, and Unicode content round-trip;
+- missing file produces empty state;
+- malformed and oversized persisted data are rejected;
+- truncated data is rejected;
+- IDs remain valid after reload;
+- failed persistence is not reported as success.
 
 ## Checkpoint
 
-You are done when:
+You are done when valid records survive restart, corrupt data fails explicitly, and replacement cannot expose a partially written destination file under the documented filesystem assumptions.
 
-- Records survive restart.
-- Missing data file is handled.
-- Malformed data does not silently create nonsense state.
+After this, continue with [Phase 10: Static Files and CSS](10-static-files-css.md).

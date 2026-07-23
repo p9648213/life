@@ -1,44 +1,36 @@
 # Phase 22: Observability and Diagnostics
 
-Goal: make the server explain what happened without exposing private details to users.
+Goal: make request behavior diagnosable without exposing private data.
 
-Good diagnostics help you debug correctness first and performance later.
+Design the logging and metrics boundary yourself.
 
-## What to Learn
+## Expected Behavior
 
-- Request logging
-- Error logging
-- Request IDs
-- Timing measurements
-- Debug output versus user-facing output
-- Simple counters
+One request can be traced from acceptance to response using a request ID, status, duration, and safe error context. Basic counters describe traffic and failures.
 
-## Where to Look
+## Requirements
 
-- Rust time: https://doc.rust-lang.org/std/time/
-- `eprintln!`: https://doc.rust-lang.org/std/macro.eprintln.html
-- HTTP status codes: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+- Give each request a bounded, safe identifier.
+- Record method, normalized path, status, and duration.
+- Log internal errors with enough context to diagnose the responsible boundary.
+- Keep user-facing errors short and separate from diagnostic detail.
+- Do not log passwords, session IDs, cookies, authorization values, sensitive form bodies, or query secrets.
+- Define whether client addresses and user identifiers are logged.
+- Keep log volume bounded under invalid or high-rate traffic.
+- Make counters safe under concurrency.
+- Ensure diagnostics do not change response correctness.
 
-## Step-by-Step Work
+## Tests to Write
 
-1. Log one line per request.
-2. Include method, path, status code, and duration.
-3. Add a simple request ID.
-4. Log parser and handler errors server-side.
-5. Keep browser responses safe and short.
-6. Add counters for total requests and error responses.
-
-## Questions to Answer
-
-- What information helps debug a failed request?
-- What information should not be logged?
-- Where should timing start and stop?
-- How can logs stay useful under many requests?
+- successful and failed requests produce the expected safe fields;
+- request IDs correlate related entries;
+- secrets and sensitive bodies are absent or redacted;
+- user-facing responses do not contain internal errors;
+- counters remain correct under concurrent updates;
+- logging failure does not corrupt the HTTP response.
 
 ## Checkpoint
 
-You are done when:
+You are done when failures can be traced server-side, basic traffic can be counted, and diagnostic output has an explicit privacy boundary.
 
-- A request can be traced through logs.
-- Internal errors are visible server-side.
-- User-facing errors do not leak internals.
+After this, continue with [Phase 23: Benchmarking and Profiling](23-benchmarking-profiling.md).
