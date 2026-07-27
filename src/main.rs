@@ -4,29 +4,47 @@ use life::{
         response::{Response, StatusCode},
     },
     server::Server,
-    templates::render_resource,
+    state::State,
+    templates::{ResourceView, render_resource},
 };
 
-fn create_resourse<'buf, 'req>(request: &'req Request<'buf>) -> Response<'req> {
-    if let Ok(form) = request.extract_form(["r_name"]) {
-        println!("{:?}", form);
-        Response::html(StatusCode::Ok, "Resource created")
+fn create_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
+    if let Ok([r_name]) = request.extract_form(["r_name"]) {
+        state.resources.push(r_name);
+        let resources = state.resources.join(", ");
+        let view = ResourceView {
+            list_resource: &resources,
+        };
+        let mut html = String::new();
+        render_resource(&mut html, view);
+        Response::html(StatusCode::Ok, &html)
     } else {
         Response::text_plain(StatusCode::InternalServerError, "Error Parsing Form")
     }
 }
 
-fn list_resourse<'buf, 'req>(request: &'req Request<'buf>) -> Response<'req> {
-    let query = request.query().get("id");
-    println!("{:?}", query);
+fn delete_resourse<'buf, 'req>(request: &'req Request<'buf>, _: &mut State) -> Response<'req> {
+    if let Some(id) = request.query().get("id").copied() {
+        println!("{}", id);
+    }
+    Response::html(StatusCode::Ok, "Resource delete")
+}
+
+fn list_resourse<'buf, 'req>(_request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
     let mut html = String::new();
-    render_resource(&mut html);
+    let resources = state.resources.join(",");
+    let view = ResourceView {
+        list_resource: &resources,
+    };
+    render_resource(&mut html, view);
     Response::html(StatusCode::Ok, &html)
 }
 
 fn main() -> std::io::Result<()> {
-    let mut server = Server::new();
-    server.routes.post("/resources", create_resourse);
+    let state = State::default();
+    let mut server = Server::new(state);
+    server.routes.post("/resources/create", create_resourse);
+    server.routes.post("/resources/delete", delete_resourse);
     server.routes.get("/resources", list_resourse);
     server.run("127.0.0.1:8080")
 }

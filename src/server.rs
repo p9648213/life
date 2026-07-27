@@ -12,20 +12,16 @@ use crate::{
     },
 };
 
-pub struct Server<'server> {
-    pub routes: Router<'server>,
+pub struct Server<'server, T> {
+    pub routes: Router<'server, T>,
+    pub state: T,
 }
 
-impl<'server> Default for Server<'server> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<'server> Server<'server> {
-    pub fn new() -> Self {
+impl<'server, T> Server<'server, T> {
+    pub fn new(state: T) -> Self {
         Self {
             routes: Router::new(),
+            state,
         }
     }
 
@@ -118,7 +114,7 @@ impl<'server> Server<'server> {
         Ok(data)
     }
 
-    pub fn handle_client(&self, mut stream: TcpStream) -> std::io::Result<()> {
+    pub fn handle_client(&mut self, mut stream: TcpStream) -> std::io::Result<()> {
         let bytes_slice = Self::read_one_request(&mut stream)?;
         let request = match Request::parse(&bytes_slice) {
             Ok(request) => request,
@@ -129,12 +125,12 @@ impl<'server> Server<'server> {
                 return Ok(());
             }
         };
-        let response = self.routes.handle_request(&request);
+        let response = self.routes.handle_request(&request, &mut self.state);
         stream.write_all(&response.to_bytes())?;
         Ok(())
     }
 
-    pub fn run(&self, address: &str) -> std::io::Result<()> {
+    pub fn run(&mut self, address: &str) -> std::io::Result<()> {
         let listener = TcpListener::bind(address)?;
         for incomming in listener.incoming() {
             let stream = incomming?;
