@@ -9,7 +9,7 @@ use life::{
 };
 
 fn create_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
-    if let Ok([r_name]) = request.extract_form(["r_name"]) {
+    if let Ok([r_name]) = request.extract_form(["create_r_name"]) {
         state.resources.push(r_name);
         let resources = state.resources.join(", ");
         let view = ResourceView {
@@ -24,7 +24,7 @@ fn create_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) 
 }
 
 fn delete_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
-    if let Ok([r_name]) = request.extract_form(["r_name"]) {
+    if let Ok([r_name]) = request.extract_form(["delete_r_name"]) {
         state.resources.retain(|r| *r != r_name);
         let resources = state.resources.join(", ");
         let view = ResourceView {
@@ -34,17 +34,30 @@ fn delete_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) 
         render_resource(&mut html, view);
         Response::html(StatusCode::Ok, &html)
     } else {
-        Response::html(StatusCode::BadRequest, "Id not found")
+        Response::html(StatusCode::BadRequest, "Id Not Found")
     }
 }
 
-fn list_resourse<'buf, 'req>(_request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
+fn list_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
     let mut html = String::new();
-    let resources = state.resources.join(",");
-    let view = ResourceView {
-        list_resource: &resources,
-    };
-    render_resource(&mut html, view);
+    if let Some(r_name) = request.query().get("name").copied() {
+        let resource = state
+            .resources
+            .iter()
+            .find(|r| *r == r_name)
+            .map(String::as_str)
+            .unwrap_or("");
+        let view = ResourceView {
+            list_resource: resource,
+        };
+        render_resource(&mut html, view);
+    } else {
+        let resources = state.resources.join(",");
+        let view = ResourceView {
+            list_resource: &resources,
+        };
+        render_resource(&mut html, view);
+    }
     Response::html(StatusCode::Ok, &html)
 }
 

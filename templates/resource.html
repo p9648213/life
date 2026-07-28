@@ -7,17 +7,46 @@
   </head>
   <body>
     <form method="POST" action="/resources/create">
-      <label for="r_name">Create Resource: </label>
-      <input id="r_name" type="text" name="r_name" value="" />
+      <label for="create_r_name">Create Resource: </label>
+      <input id="create_r_name" type="text" name="r_name" value="" />
       <button type="submit">Create</button>
     </form>
-    <br>
+    <br />
     <form method="POST" action="/resources/delete">
-      <label for="r_name">Delete Resource: </label>
-      <input id="r_name" type="text" name="r_name" value="" />
+      <label for="delete_r_name">Delete Resource: </label>
+      <input id="delete_r_name" type="text" name="r_name" value="" />
       <button type="submit">Delete</button>
     </form>
-    <br>
+    <br />
+    <div>
+      <label for="search_r_name">Search 1 resource: </label>
+      <input id="search_r_name" type="text" name="r_name" value="" />
+      <button id="search_button" type="button">Search</button>
+    </div>
+    <br />
     <div>List Resources: {list_resource:escape}</div>
   </body>
+  <script>
+    const searchInput = document.getElementById("search_r_name");
+    const searchButton = document.getElementById("search_button");
+
+    function searchResource() {
+      const name = searchInput.value.trim();
+
+      if (!name) {
+        return;
+      }
+
+      const params = new URLSearchParams({ name });
+      window.location.href = `/resources?${params}`;
+    }
+
+    searchButton.addEventListener("click", searchResource);
+
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        searchResource();
+      }
+    });
+  </script>
 </html>
