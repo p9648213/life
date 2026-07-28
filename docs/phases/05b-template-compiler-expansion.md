@@ -17,7 +17,7 @@ First ask:
 - Is the requested behavior presentation structure, or is it business logic that belongs in the handler?
 - Does the feature need new template structure, or only another ordinary runtime value?
 
-If a handler can pass one already-prepared string through `{value}` or `{value:escape}`, the compiler may not need another feature.
+If a handler can pass one already-prepared string through `{@value}` or `{@value:escape}`, the compiler may not need another feature.
 
 Enter Phase 05B only when you can show the smallest template that the current compiler cannot express without unsafe output, duplicated markup, or unreasonable handler work.
 
@@ -26,14 +26,15 @@ Enter Phase 05B only when you can show the smallest template that the current co
 The current compiler already supports:
 
 ```text
-{name}                 raw HTML text
-{name:escape}          HTML-text escaping
-{name:escape:escape}   valid; still generates one escape call
+{@name}                 raw HTML text
+{@name:escape}          HTML-text escaping
+{@name:escape:escape}   valid; still generates one escape call
 ```
 
 It also has these behaviors:
 
 - Literal template text becomes direct `out.push_str(...)` calls.
+- Ordinary `{` and `}` characters remain literal template text.
 - Repeated variables share one generated `&str` view field.
 - Escaping is selected independently for each variable occurrence.
 - A template with variables generates a view struct and a render function.
@@ -186,8 +187,9 @@ For the selected feature, cover the layers that can fail independently.
 Keep verifying:
 
 - Literal HTML remains unchanged.
-- `{name}` stays raw.
-- `{name:escape}` stays escaped.
+- Ordinary braces are emitted exactly once and remain in source order.
+- `{@name}` stays raw.
+- `{@name:escape}` stays escaped.
 - Repeated `:escape` produces one escape call.
 - Repeated variables generate one view field.
 - Static templates still need no view struct or view argument.

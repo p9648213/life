@@ -35,7 +35,7 @@ template text
 A tokenizer turns template text into meaningful pieces. For example:
 
 ```html
-<h1>{title:escape}</h1>
+<h1>{@title:escape}</h1>
 ```
 
 Can become:
@@ -54,11 +54,11 @@ crate::util::escape_html(ctx.title, out);
 out.push_str("</h1>");
 ```
 
-For this phase, you do not need parser generators, formal grammars, LLVM, bytecode, optimization passes, proc macro internals, or a full HTML parser. A simple scanner that reads until `{`, reads a variable name and optional colon-separated operations until `}`, and repeats is enough to begin. The only supported operation is `escape`. Repeating it, as in `{title:escape:escape}`, is valid and still selects one escape call; an empty or unknown operation is an error.
+For this phase, you do not need parser generators, formal grammars, LLVM, bytecode, optimization passes, proc macro internals, or a full HTML parser. A simple scanner that recognizes `{@`, reads a variable name and optional colon-separated operations until `}`, and repeats is enough to begin. Ordinary `{` and `}` characters remain literal template text. The only supported operation is `escape`. Repeating it, as in `{@title:escape:escape}`, is valid and still selects one escape call; an empty or unknown operation is an error.
 
 The important early errors are practical:
 
-- Opened `{` but never found `}`.
+- Opened `{@` but never found `}`.
 - Empty variable name.
 - Invalid variable name.
 - Empty or unsupported variable operation.
@@ -74,7 +74,7 @@ One small template is enough to prove this phase. It should contain literal HTML
 
 ## Step-by-Step Work
 
-1. Define a tiny template source format. For this phase, `{title}` emits a raw value, `{title:escape}` emits an HTML-escaped value, and repeated `:escape` operations still escape once.
+1. Define a tiny template source format. For this phase, `{@title}` emits a raw value, `{@title:escape}` emits an HTML-escaped value, ordinary braces remain literal text, and repeated `:escape` operations still escape once.
 2. Write a compiler path that turns template source into Rust code.
 3. Generate render functions that write into a caller-provided output buffer.
 4. Add an HTML escaping helper that writes directly into the existing output buffer.
@@ -96,8 +96,8 @@ It should not look like:
 
 ```text
 read template source
-find "{name}"
-replace "{name}" with a value
+find "{@name}"
+replace "{@name}" with a value
 repeat for every placeholder
 ```
 
@@ -136,13 +136,13 @@ A simple pipeline is:
 ```text
 templates/home.html
   -> read source
-  -> tokenize literals, {raw_variables}, and {escaped_variables:escape}
+  -> tokenize literals, {@raw_variables}, and {@escaped_variables:escape}
   -> generate Rust render function
   -> write generated file
   -> include generated render code and call it from tests or handlers
 ```
 
-The first tokenizer does not need to understand all HTML. It can treat everything outside `{...}` as literal text. That is acceptable because this compiler runs before request handling. Later phases can decide whether to add stricter HTML parsing.
+The first tokenizer does not need to understand all HTML. It can treat everything outside `{@...}` as literal text, including ordinary JavaScript and CSS braces. That is acceptable because this compiler runs before request handling. Later phases can decide whether to add stricter HTML parsing.
 
 Keep generated code boring. Boring generated code is easier to inspect, test, profile, and replace.
 
@@ -224,7 +224,7 @@ pub fn render(ctx: &Page<'_>, out: &mut String) {
 Avoid generated code shaped like:
 
 ```rust
-let html = template_source.replace("{title}", ctx.title);
+let html = template_source.replace("{@title}", ctx.title);
 ```
 
 The first version should:
@@ -251,12 +251,12 @@ The capacity estimate does not need to be exact. Its job is to reduce reallocati
 Escaping is selected per variable occurrence in the template:
 
 ```text
-{name}                 appends name as raw text
-{name:escape}          HTML-escapes name into the output buffer
-{name:escape:escape}   is valid and produces the same single escape call
+{@name}                 appends name as raw text
+{@name:escape}          HTML-escapes name into the output buffer
+{@name:escape:escape}   is valid and produces the same single escape call
 ```
 
-Repeated `:escape` operations are duplicate-tolerant syntax; they do not escape the already-escaped output a second time. Empty operations such as `{name:}` and unknown operations return a compiler error.
+Repeated `:escape` operations are duplicate-tolerant syntax; they do not escape the already-escaped output a second time. Empty operations such as `{@name:}` and unknown operations return a compiler error.
 
 Use raw variables only for content that is already trusted and intended to contain HTML. Any user-controlled or otherwise untrusted value must use the `:escape` operation.
 
@@ -274,13 +274,13 @@ Do not pass raw user input through an unescaped variable.
 
 ## Experiments
 
-Render a template containing `{message:escape}` with sample text like:
+Render a template containing `{@message:escape}` with sample text like:
 
 ```html
 <script>alert("xss")</script>
 ```
 
-The escaped occurrence should be emitted as text. A separate `{trusted_html}` occurrence should remain raw so both operations are verified.
+The escaped occurrence should be emitted as text. A separate `{@trusted_html}` occurrence should remain raw so both operations are verified.
 
 ## Questions to Answer
 
@@ -297,8 +297,9 @@ The escaped occurrence should be emitted as text. A separate `{trusted_html}` oc
 
 You are done when:
 
-- The compiler accepts literal HTML, raw `{name}` variables, escaped `{name:escape}` variables, and repeated `:escape` operations that generate one escape call.
-- Unmatched, empty, and invalid variables, plus empty or unsupported operations, return useful compiler errors.
+- The compiler accepts literal braces, raw `{@name}` variables, escaped `{@name:escape}` variables, and repeated `:escape` operations that generate one escape call.
+- Unclosed, empty, and invalid variables, plus empty or unsupported operations, return useful compiler errors.
+- Ordinary braces are emitted exactly once and remain in their original source position.
 - At least one dynamic template compiles into valid Rust and is called from a focused test with runtime data.
 - The generated renderer appends raw variables directly and escapes `:escape` variables into the same output buffer.
 - Template source is compiled before request handling.

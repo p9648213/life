@@ -17,7 +17,7 @@ templates/
 
 I verified that:
 
-- `cargo test --manifest-path crates/htmlc/Cargo.toml` passes with 18 tests.
+- `cargo test --manifest-path crates/htmlc/Cargo.toml` contains 22 tests: 21 pass, while the exact literal-brace ordering regression remains red until ordinary closing braces stop being emitted separately.
 - `cargo test --test templates` passes.
 - `cargo check` passes.
 - `cargo fmt --check` passes.
@@ -25,8 +25,8 @@ I verified that:
 - Nested template paths compile into generated functions and view structs.
 - Literal HTML, quoted attributes, Unicode, backslashes, and newlines are emitted as valid Rust string literals.
 - Repeated variables share one generated view field.
-- `{name}` renders raw text and `{name:escape}` writes HTML-escaped text directly into the final output buffer.
-- Empty variables, unmatched braces, invalid names, and invalid operations return compiler errors.
+- `{@name}` renders raw text and `{@name:escape}` writes HTML-escaped text directly into the final output buffer.
+- Empty variables, unclosed `{@...}` placeholders, invalid names, and invalid operations return compiler errors; ordinary braces remain literal.
 
 ## What You Did Well
 
@@ -44,7 +44,7 @@ I verified that:
 - The compiler errors identify the error kind but do not yet carry a template filename, byte offset, or line and column. Improve diagnostics when templates become larger.
 - The build script currently uses `unwrap` around file access and compiler results. That is fine for this phase, but later attach the template path to build errors before reporting them.
 - The template-path rule intentionally relies on Rust compilation for some edge cases, such as a path component starting with a digit or generated-name collisions. If this becomes frustrating, move those checks into the build script and report the conflicting paths directly.
-- Raw `{name}` output is powerful but must only be used for trusted HTML. Keep untrusted user-controlled values on the explicit `{name:escape}` path.
+- Raw `{@name}` output is powerful but must only be used for trusted HTML. Keep untrusted user-controlled values on the explicit `{@name:escape}` path.
 - Escaping currently targets HTML text content. Attribute, URL, JavaScript, CSS, and other contexts need separate rules before they are supported.
 - Generated view fields are currently borrowed `&str` values. Future phases may need typed fields, nested paths, conditionals, loops, layouts, includes, and source-mapped compiler diagnostics.
 - The phase verifies rendering through a focused integration test. Wiring generated templates into real application handlers can remain separate until the application domain is chosen.

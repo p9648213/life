@@ -13,13 +13,14 @@ pub enum Token {
 
 fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
     let mut tokens = vec![];
+    let mut index = 0;
     let mut literal_index = 0;
     let mut variable_index = 0;
     let mut variable_count = 0;
     let mut current_variable = HashSet::new();
     let mut open_variable = false;
-    for (index, ch) in html.char_indices() {
-        if ch == '{' {
+    while index < html.len() {
+        if html[index..].starts_with("{@") {
             if open_variable {
                 return Err(TemplateError::UnCloseVariable);
             }
@@ -28,12 +29,12 @@ fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
             if !literal.is_empty() {
                 tokens.push(Token::Literal(literal));
             }
-            variable_index = index + 1;
+            variable_index = index + 2;
+            index += 2;
+            continue;
         }
-        if ch == '}' {
-            if !open_variable {
-                return Err(TemplateError::MissingOpenVariable);
-            }
+        let ch = html[index..].chars().next().unwrap();
+        if ch == '}' && open_variable {
             let mut variable = html[variable_index..index].trim();
             if variable.is_empty() {
                 return Err(TemplateError::EmptyVariable);
@@ -62,6 +63,7 @@ fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
             }
             open_variable = false;
         }
+        index += ch.len_utf8();
     }
     if open_variable {
         return Err(TemplateError::UnCloseVariable);
@@ -70,7 +72,7 @@ fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
     Ok((tokens, variable_count))
 }
 
-fn generate_r(tokens: Vec<Token>, fn_name: &str, struct_name: &str, variable_count: u32) -> String {
+fn generate_r(tokens: &[Token], fn_name: &str, struct_name: &str, variable_count: u32) -> String {
     let mut var_pos = 0;
     let mut current_var = HashSet::new();
     let mut view_struct = String::new();
@@ -100,10 +102,10 @@ fn generate_r(tokens: Vec<Token>, fn_name: &str, struct_name: &str, variable_cou
             }
             Token::Variable(variable, escape) => {
                 if !current_var.contains(&variable) {
-                    view_struct = view_struct.replace(&format!("<var{}>", var_pos), &variable);
+                    view_struct = view_struct.replace(&format!("<var{}>", var_pos), variable);
                     var_pos += 1;
                 }
-                if escape {
+                if *escape {
                     function.push_str(&format!(
                         "crate::util::escape_html(view.{}, out);",
                         variable
@@ -125,5 +127,5 @@ pub fn generate_code(
     struct_name: &str,
 ) -> Result<String, TemplateError> {
     let (token, var_count) = parse_html(html)?;
-    Ok(generate_r(token, fn_name, struct_name, var_count))
+    Ok(generate_r(&token, fn_name, struct_name, var_count))
 }

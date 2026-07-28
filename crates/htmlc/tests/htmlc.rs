@@ -29,7 +29,7 @@ fn normalize_generated_rust(value: &str) -> String {
 
 #[test]
 fn renders_a_single_variable_between_literal_fragments() {
-    let code = generate_code("<div><span>{name}</span></div>", "test", "Test")
+    let code = generate_code("<div><span>{@name}</span></div>", "test", "Test")
         .expect("valid template should compile");
     let expected = r#"
         pub struct TestView<'a> {
@@ -50,7 +50,7 @@ fn renders_a_single_variable_between_literal_fragments() {
 
 #[test]
 fn renders_a_variable_after_multiple_static_elements() {
-    let code = generate_code("<div></div><span>{name}</span>", "test", "Test")
+    let code = generate_code("<div></div><span>{@name}</span>", "test", "Test")
         .expect("valid template should compile");
     let expected = r#"
         pub struct TestView<'a> {
@@ -72,7 +72,7 @@ fn renders_a_variable_after_multiple_static_elements() {
 
 #[test]
 fn renders_multiple_variables_separated_by_literals() {
-    let code = generate_code("<div>{age}</div><span>{name}</span>", "test", "Test")
+    let code = generate_code("<div>{@age}</div><span>{@name}</span>", "test", "Test")
         .expect("valid template should compile");
     let expected = r#"
         pub struct TestView<'a> {
@@ -97,7 +97,7 @@ fn renders_multiple_variables_separated_by_literals() {
 
 #[test]
 fn renders_adjacent_variables_in_their_original_order() {
-    let code = generate_code("<div>{age}{name}</div>", "test", "Test")
+    let code = generate_code("<div>{@age}{@name}</div>", "test", "Test")
         .expect("valid template should compile");
     let expected = r#"
         pub struct TestView<'a> {
@@ -122,7 +122,7 @@ fn renders_adjacent_variables_in_their_original_order() {
 #[test]
 fn preserves_quotes_in_literal_html_attributes() {
     let code = generate_code(
-        r#"<div class="container">{age}{name}</div>"#,
+        r#"<div class="container">{@age}{@name}</div>"#,
         "test",
         "Test",
     )
@@ -148,7 +148,7 @@ fn preserves_quotes_in_literal_html_attributes() {
 
 #[test]
 fn escapes_quotes_backslashes_and_newlines_in_literal_html() {
-    let code = generate_code("<a href=\"C:\\\\docs\">{label}</a>\n", "link", "Link")
+    let code = generate_code("<a href=\"C:\\\\docs\">{@label}</a>\n", "link", "Link")
         .expect("valid template should compile");
 
     let expected = r#"
@@ -187,7 +187,7 @@ fn static_template_has_no_view_struct_or_parameter() {
 
 #[test]
 fn preserves_unicode_html_around_a_variable() {
-    let code = generate_code("<p>Chào, {name} 👋</p>", "greeting", "Greeting")
+    let code = generate_code("<p>Chào, {@name} 👋</p>", "greeting", "Greeting")
         .expect("valid template should compile");
     let expected = r#"
         pub struct GreetingView<'a> {
@@ -220,7 +220,7 @@ fn preserves_meaningful_whitespace_in_literal_html() {
 
 #[test]
 fn applies_escape_operation_per_variable_occurrence() {
-    let code = generate_code("<p>{value:escape}{value}</p>", "message", "Message")
+    let code = generate_code("<p>{@value:escape}{@value}</p>", "message", "Message")
         .expect("valid template should compile");
 
     assert!(
@@ -240,7 +240,7 @@ fn applies_escape_operation_per_variable_occurrence() {
 
 #[test]
 fn repeated_escape_operation_generates_one_escape_call() {
-    let code = generate_code("<p>{value:escape:escape}</p>", "message", "Message")
+    let code = generate_code("<p>{@value:escape:escape}</p>", "message", "Message")
         .expect("repeating the escape operation is valid");
 
     assert_eq!(
@@ -262,7 +262,7 @@ fn repeated_escape_operation_generates_one_escape_call() {
 
 #[test]
 fn repeated_variable_uses_one_context_field() {
-    let code = generate_code("<h1>{title}</h1><p>{title}</p>", "article", "Article")
+    let code = generate_code("<h1>{@title}</h1><p>{@title}</p>", "article", "Article")
         .expect("valid template should compile");
 
     assert_eq!(
@@ -279,51 +279,124 @@ fn repeated_variable_uses_one_context_field() {
 
 #[test]
 fn rejects_an_empty_variable() {
-    let result = generate_code("<p>{}</p>", "message", "Message");
+    let result = generate_code("<p>{@}</p>", "message", "Message");
 
     assert!(matches!(result, Err(TemplateError::EmptyVariable)));
 }
 
 #[test]
 fn rejects_an_unclosed_variable() {
-    let result = generate_code("<p>{title</p>", "message", "Message");
+    let result = generate_code("<p>{@title</p>", "message", "Message");
+
+    assert!(matches!(result, Err(TemplateError::UnCloseVariable)));
+}
+
+#[test]
+fn treats_single_braced_text_as_literal() {
+    let code = generate_code("<p>{name}</p>", "message", "Message")
+        .expect("a brace without the @ marker should remain literal");
 
     assert!(
-        result.is_err(),
-        "an opening brace must have a closing brace"
+        code.contains(r#"out.push_str("<p>{name}</p>");"#),
+        "single-braced text must be emitted literally: {code}"
+    );
+    assert!(
+        !code.contains("MessageView"),
+        "literal braces must not create a template view: {code}"
     );
 }
 
 #[test]
-fn rejects_a_stray_closing_brace() {
-    let result = generate_code("<p>title}</p>", "message", "Message");
+fn treats_ordinary_javascript_braces_as_literal() {
+    let code = generate_code(
+        r#"<script>const object = { name: "Alice" }; const first = values[0];</script>"#,
+        "script",
+        "Script",
+    )
+    .expect("ordinary JavaScript braces should remain literal");
 
     assert!(
-        result.is_err(),
-        "a closing brace must follow an opening brace"
+        code.contains(
+            r#"out.push_str("<script>const object = { name: \"Alice\" }; const first = values[0];</script>");"#
+        ),
+        "JavaScript syntax must be emitted literally: {code}"
+    );
+    assert!(
+        !code.contains("ScriptView"),
+        "literal JavaScript must not create a template view: {code}"
+    );
+}
+
+#[test]
+fn preserves_literal_braces_once_and_in_source_order() {
+    let code = generate_code(
+        "<script>const params = new URLSearchParams({ name });</script>",
+        "script",
+        "Script",
+    )
+    .expect("ordinary JavaScript braces should remain literal");
+    let expected = r#"
+        pub fn render_script(out: &mut String) {
+            out.push_str("<script>const params = new URLSearchParams({ name });</script>");
+        }
+    "#;
+
+    assert_eq!(
+        normalize_generated_rust(&code),
+        normalize_generated_rust(expected),
+        "literal braces must not be duplicated or moved"
+    );
+}
+
+#[test]
+fn preserves_javascript_template_interpolation_before_a_variable() {
+    let code = generate_code(
+        r#"<script>window.location.href = `/resources?${params}`;</script><h1>{@title}</h1>"#,
+        "resource",
+        "Resource",
+    )
+    .expect("JavaScript interpolation and a template variable should compile together");
+
+    assert!(
+        code.contains(
+            r#"out.push_str("<script>window.location.href = `/resources?${params}`;</script><h1>");"#
+        ),
+        "JavaScript template interpolation must remain literal: {code}"
+    );
+    assert!(
+        code.contains("out.push_str(view.title);"),
+        "the marked template variable must still be rendered: {code}"
+    );
+}
+
+#[test]
+fn treats_a_closing_brace_without_a_variable_as_literal() {
+    let code = generate_code("<p>title}</p>", "message", "Message")
+        .expect("a closing brace outside a variable should remain literal");
+
+    assert!(
+        code.contains(r#"out.push_str("<p>title}</p>");"#),
+        "the closing brace must be emitted literally: {code}"
     );
 }
 
 #[test]
 fn rejects_an_invalid_variable_name() {
-    let result = generate_code("<p>{display name}</p>", "message", "Message");
+    let result = generate_code("<p>{@display name}</p>", "message", "Message");
 
-    assert!(
-        result.is_err(),
-        "variable names must be valid Rust field identifiers"
-    );
+    assert!(matches!(result, Err(TemplateError::InvalidVariable)));
 }
 
 #[test]
 fn rejects_an_unknown_variable_operation() {
-    let result = generate_code("<p>{value:escpae}</p>", "message", "Message");
+    let result = generate_code("<p>{@value:escpae}</p>", "message", "Message");
 
     assert!(matches!(result, Err(TemplateError::InvalidOperation)));
 }
 
 #[test]
 fn rejects_an_empty_variable_operation() {
-    let result = generate_code("<p>{value:}</p>", "message", "Message");
+    let result = generate_code("<p>{@value:}</p>", "message", "Message");
 
     assert!(matches!(result, Err(TemplateError::InvalidOperation)));
 }
