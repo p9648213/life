@@ -23,11 +23,19 @@ fn create_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) 
     }
 }
 
-fn delete_resourse<'buf, 'req>(request: &'req Request<'buf>, _: &mut State) -> Response<'req> {
-    if let Some(id) = request.query().get("id").copied() {
-        println!("{}", id);
+fn delete_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
+    if let Ok([r_name]) = request.extract_form(["r_name"]) {
+        state.resources.retain(|r| *r != r_name);
+        let resources = state.resources.join(", ");
+        let view = ResourceView {
+            list_resource: &resources,
+        };
+        let mut html = String::new();
+        render_resource(&mut html, view);
+        Response::html(StatusCode::Ok, &html)
+    } else {
+        Response::html(StatusCode::BadRequest, "Id not found")
     }
-    Response::html(StatusCode::Ok, "Resource delete")
 }
 
 fn list_resourse<'buf, 'req>(_request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
