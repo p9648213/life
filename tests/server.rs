@@ -15,7 +15,7 @@ use life::{
     server::Server,
 };
 
-fn hello_world<'a>(_: &'a Request<'_>) -> Response<'a> {
+fn hello_world<'a>(_: &'a Request<'_>, _: &mut ()) -> Response<'a> {
     Response::html(StatusCode::Ok, "<h1>HELLO WORLD</h1>")
 }
 
@@ -347,7 +347,7 @@ fn rejects_declared_request_larger_than_capacity() {
 fn handle_client_writes_http_response_over_tcp() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
-    let mut app = Server::new();
+    let mut app = Server::new(());
     app.routes.get("/", hello_world);
 
     let server = thread::spawn(move || {
@@ -373,7 +373,7 @@ fn handle_client_writes_http_response_over_tcp() {
 fn handle_client_returns_400_for_malformed_request() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
-    let app = Server::new();
+    let mut app = Server::new(());
 
     let server = thread::spawn(move || {
         let (stream, _) = listener.accept().unwrap();

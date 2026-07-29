@@ -44,7 +44,11 @@ impl<'route, T> Router<'route, T> {
         self
     }
 
-    pub fn handle_request<'req, 'buf>(&self, request: &'req Request<'buf>, state: &mut T) -> Response<'req> {
+    pub fn handle_request<'req, 'buf>(
+        &self,
+        request: &'req Request<'buf>,
+        state: &mut T,
+    ) -> Response<'req> {
         match request.method() {
             HttpMethod::Get => {
                 let routes = self.get_routes();

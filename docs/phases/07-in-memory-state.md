@@ -6,54 +6,39 @@ Design the types, modules, and ownership structure yourself.
 
 ## Expected Behavior
 
-Implement a small temporary resource with enough fields to demonstrate state.
+Create state once when the server starts and use that same state while handling every request.
 
-Support:
+Use a small temporary resource route only to demonstrate that state survives across requests. For example:
 
 ```text
-POST /resources          -> create a resource
-GET  /resources          -> list resources
-GET  /resources?id=123   -> view one resource
+POST /resources   -> change state
+GET  /resources   -> observe the changed state
 ```
 
-Use the same state for every request handled by the running server. Restarting the process should clear it.
+The resource model, fields, validation rules, IDs, limits, endpoint design, and response behavior are not part of this phase. They are disposable test scaffolding, not an application-domain implementation to review.
+
+Restarting the process should clear the state.
 
 ## Requirements
 
 - Create the state once, outside the connection-accept loop.
 - Pass state explicitly to handlers; do not use global mutable state.
 - Keep application data separate from the TCP, HTTP, and routing code.
-- Validate all input before changing state.
-- Give created resources stable, increasing IDs.
-- Handle ID overflow without wrapping or panicking.
-- Set limits for retained record count and retained field sizes.
-- Reject a failed creation without changing either the records or next ID.
-- HTML-escape user-controlled data when rendering it.
+- Allow a handler to mutate state and a later request to observe that mutation.
+- Keep the server and router generic over the application state where practical.
 - Keep the server single-threaded; do not add `Arc` or `Mutex` yet.
-
-For `GET /resources`:
-
-- missing `id` means list all resources;
-- an empty, repeated, or non-numeric `id` is a client error;
-- a valid but unknown ID returns `404 Not Found`.
-
-A bounded linear scan for an ID is acceptable in this phase. Listing and lookup should not clone the entire state unnecessarily.
 
 ## Tests to Write
 
 - the initial list is empty;
-- one valid request creates one resource;
+- one request changes the state;
 - multiple requests observe the same state;
-- IDs increase without duplication;
-- list and detail requests return the stored data;
-- invalid and unknown IDs return the expected errors;
-- invalid input does not mutate state;
-- record-limit and ID-overflow failures are atomic;
-- rendered user data is escaped;
 - state behavior can be tested without opening a TCP socket.
 
 ## Checkpoint
 
-You are done when resources can be created, listed, and retrieved across requests; memory growth and IDs are bounded; failed mutations leave state unchanged; and the backend core remains independent of the temporary application domain.
+You are done when state is created once, passed explicitly through the backend flow, mutated by one request, and observed by a later request. The backend core should remain independent of the temporary resource domain.
+
+Do not evaluate completion based on the design or completeness of the resource example. Resource behavior can be replaced or discarded after it proves that shared state works.
 
 After this, continue with [Phase 08: Redirects](08-redirects.md).
