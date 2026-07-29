@@ -1,8 +1,6 @@
+use crate::{error::TemplateError, util::is_valid_rust_variable_name};
 use std::collections::HashSet;
 
-use crate::{error::TemplateError, util::is_valid_rust_variable_name};
-
-type VarCount = u32;
 type Escape = bool;
 
 #[derive(Debug)]
@@ -11,13 +9,11 @@ pub enum Token {
     Variable(String, Escape),
 }
 
-fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
+fn parse_html(html: &str) -> Result<Vec<Token>, TemplateError> {
     let mut tokens = vec![];
     let mut index = 0;
     let mut literal_index = 0;
     let mut variable_index = 0;
-    let mut variable_count = 0;
-    let mut current_variable = HashSet::new();
     let mut open_variable = false;
     while index < html.len() {
         if html[index..].starts_with("{@") {
@@ -57,10 +53,6 @@ fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
                 tokens.push(Token::Variable(variable.to_string(), false));
             }
             literal_index = index + 1;
-            if !current_variable.contains(variable) {
-                current_variable.insert(variable);
-                variable_count += 1;
-            }
             open_variable = false;
         }
         index += ch.len_utf8();
@@ -69,56 +61,58 @@ fn parse_html(html: &str) -> Result<(Vec<Token>, VarCount), TemplateError> {
         return Err(TemplateError::UnCloseVariable);
     }
     tokens.push(Token::Literal(html[literal_index..].to_string()));
-    Ok((tokens, variable_count))
+    Ok(tokens)
 }
 
-fn generate_r(tokens: &[Token], fn_name: &str, struct_name: &str, variable_count: u32) -> String {
-    let mut var_pos = 0;
-    let mut current_var = HashSet::new();
+fn generate_r(tokens: &[Token], fn_name: &str, struct_name: &str) -> String {
+    let mut seen_variables = HashSet::new();
+    let mut variables = Vec::new();
     let mut view_struct = String::new();
-    let mut function = String::new();
-    if variable_count > 0 {
-        view_struct.push_str(&format!("pub struct {}View<'a> {{", struct_name));
-        for num in 0..variable_count {
-            view_struct.push_str(&format!("pub <var{}>: &'a str,", num));
-        }
-        view_struct.push('}');
-        function.push_str(&format!(
-            "pub fn render_{}(out: &mut String, view: {}View) {{",
-            fn_name.to_ascii_lowercase(),
-            struct_name
-        ));
-    } else {
-        function.push_str(&format!(
-            "pub fn render_{}(out: &mut String) {{",
-            fn_name.to_ascii_lowercase(),
-        ));
-    }
+    let mut function_header = String::new();
+    let mut function_body = String::new();
     for token in tokens {
         match token {
             Token::Literal(literal) => {
                 let literal = format!("{:?}", literal);
-                function.push_str(&format!(r#"out.push_str({});"#, literal))
+                function_body.push_str(&format!(r#"out.push_str({});"#, literal))
             }
-            Token::Variable(variable, escape) => {
-                if !current_var.contains(&variable) {
-                    view_struct = view_struct.replace(&format!("<var{}>", var_pos), variable);
-                    var_pos += 1;
-                }
+            Token::Variable(name, escape) => {
                 if *escape {
-                    function.push_str(&format!(
-                        "crate::util::escape_html(view.{}, out);",
-                        variable
-                    ));
+                    function_body
+                        .push_str(&format!("crate::util::escape_html(view.{}, out);", name));
                 } else {
-                    function.push_str(&format!("out.push_str(view.{});", variable));
+                    function_body.push_str(&format!("out.push_str(view.{});", name));
                 }
-                current_var.insert(variable);
+                if seen_variables.insert(name.as_str()) {
+                    variables.push(name.as_str());
+                }
             }
         }
     }
-    function.push('}');
-    format!("{}{}", view_struct, function)
+    if !variables.is_empty() {
+        function_header.push_str(&format!(
+            "pub fn render_{}(out: &mut String, view: {}View) {{",
+            fn_name.to_ascii_lowercase(),
+            struct_name
+        ));
+        view_struct.push_str(&format!("pub struct {}View<'a> {{", struct_name));
+        for var in &variables {
+            view_struct.push_str(&format!("pub {}: &'a str,", var));
+        }
+        view_struct.push('}');
+    } else {
+        function_header.push_str(&format!(
+            "pub fn render_{}(out: &mut String) {{",
+            fn_name.to_ascii_lowercase(),
+        ));
+    }
+    let total_length = view_struct.len() + function_header.len() + function_body.len() + 1;
+    let mut generated = String::with_capacity(total_length);
+    generated.push_str(&view_struct);
+    generated.push_str(&function_header);
+    generated.push_str(&function_body);
+    generated.push('}');
+    generated
 }
 
 pub fn generate_code(
@@ -126,6 +120,6 @@ pub fn generate_code(
     fn_name: &str,
     struct_name: &str,
 ) -> Result<String, TemplateError> {
-    let (token, var_count) = parse_html(html)?;
-    Ok(generate_r(&token, fn_name, struct_name, var_count))
+    let token = parse_html(html)?;
+    Ok(generate_r(&token, fn_name, struct_name))
 }

@@ -17,7 +17,7 @@ templates/
 
 I verified that:
 
-- `cargo test --manifest-path crates/htmlc/Cargo.toml` contains 22 tests: 21 pass, while the exact literal-brace ordering regression remains red until ordinary closing braces stop being emitted separately.
+- `cargo test --manifest-path crates/htmlc/Cargo.toml` passes with 22 tests, including exact coverage that ordinary braces are emitted once and remain in source order.
 - `cargo test --test templates` passes.
 - `cargo check` passes.
 - `cargo fmt --check` passes.
