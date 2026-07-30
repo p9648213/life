@@ -57,6 +57,38 @@ fn text_plain_response_adds_its_trusted_content_type() {
 }
 
 #[test]
+fn see_other_serializes_303_location_and_empty_body() {
+    let response =
+        Response::see_other("/resources").expect("valid redirect location should be accepted");
+    let serialized = String::from_utf8(response.to_bytes()).unwrap();
+
+    assert_eq!(
+        serialized,
+        "HTTP/1.1 303 See Other\r\n\
+Location: /resources\r\n\
+Content-Length: 0\r\n\
+Connection: close\r\n\
+\r\n"
+    );
+}
+
+#[test]
+fn see_other_rejects_cr_or_lf_in_location() {
+    for location in [
+        "/resources\rInjected: yes",
+        "/resources\nInjected: yes",
+        "/resources\r\nInjected: yes",
+    ] {
+        let result = Response::see_other(location);
+
+        assert!(
+            result.is_err(),
+            "invalid redirect location should be rejected: {location:?}"
+        );
+    }
+}
+
+#[test]
 fn set_header_replaces_existing_content_type_case_insensitively() {
     let mut response = Response::html(StatusCode::Ok, "<h1>Hello</h1>");
 

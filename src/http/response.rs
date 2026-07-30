@@ -1,5 +1,5 @@
 use crate::{
-    constant::{CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING},
+    constant::{CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, LOCATION, TRANSFER_ENCODING},
     http::error::HttpError,
 };
 
@@ -14,6 +14,7 @@ pub enum StatusCode {
     BadRequest,
     NotFound,
     InternalServerError,
+    SeeOther,
 }
 
 impl StatusCode {
@@ -23,6 +24,7 @@ impl StatusCode {
             Self::BadRequest => 400,
             Self::NotFound => 404,
             Self::InternalServerError => 500,
+            Self::SeeOther => 303,
         }
     }
 
@@ -32,6 +34,7 @@ impl StatusCode {
             Self::BadRequest => "Bad Request",
             Self::NotFound => "Not Found",
             Self::InternalServerError => "Internal Server Error",
+            Self::SeeOther => "See Other",
         }
     }
 }
@@ -119,5 +122,11 @@ impl<'header> Response<'header> {
             headers: vec![(CONTENT_TYPE, "text/plain")],
             body_bytes: text.as_bytes().to_vec(),
         }
+    }
+
+    pub fn see_other(path: &'header str) -> Result<Self, HttpError> {
+        let mut response = Response::new(StatusCode::SeeOther, vec![]);
+        response.add_header(LOCATION, path)?;
+        Ok(response)
     }
 }

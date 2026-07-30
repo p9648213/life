@@ -11,13 +11,8 @@ use life::{
 fn create_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
     if let Ok([r_name]) = request.extract_form(["create_r_name"]) {
         state.resources.push(r_name);
-        let resources = state.resources.join(", ");
-        let view = ResourceView {
-            list_resource: &resources,
-        };
-        let mut html = String::new();
-        render_resource(&mut html, view);
-        Response::html(StatusCode::Ok, &html)
+        Response::see_other("/resources")
+            .unwrap_or_else(|err| Response::html(StatusCode::InternalServerError, &err.to_string()))
     } else {
         Response::text_plain(StatusCode::InternalServerError, "Error Parsing Form")
     }
@@ -26,13 +21,8 @@ fn create_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) 
 fn delete_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
     if let Ok([r_name]) = request.extract_form(["delete_r_name"]) {
         state.resources.retain(|r| *r != r_name);
-        let resources = state.resources.join(", ");
-        let view = ResourceView {
-            list_resource: &resources,
-        };
-        let mut html = String::new();
-        render_resource(&mut html, view);
-        Response::html(StatusCode::Ok, &html)
+        Response::see_other("/resources")
+            .unwrap_or_else(|err| Response::html(StatusCode::InternalServerError, &err.to_string()))
     } else {
         Response::html(StatusCode::BadRequest, "Id Not Found")
     }
@@ -52,7 +42,7 @@ fn list_resourse<'buf, 'req>(request: &'req Request<'buf>, state: &mut State) ->
         };
         render_resource(&mut html, view);
     } else {
-        let resources = state.resources.join(",");
+        let resources = state.resources.join(", ");
         let view = ResourceView {
             list_resource: &resources,
         };
