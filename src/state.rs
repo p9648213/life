@@ -1,4 +1,6 @@
-#[derive(Default, Debug)]
-pub struct State {
-    pub resources: Vec<String>,
+use crate::storage::store::Store;
+
+#[derive(Debug)]
+pub struct State<'state> {
+    pub store: Store<'state>,
 }

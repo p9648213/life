@@ -6,3 +6,4 @@ pub const LOCATION: &str = "Location";
 pub const TRANSFER_ENCODING: &str = "Transfer-Encoding";
 pub const CONNECTION: &str = "Connection";
 pub const FORM_CONTENT_TYPE: &str = "application/x-www-form-urlencoded";
+pub const STORAGE_URL: &str = "/storage";
