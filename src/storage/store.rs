@@ -17,5 +17,7 @@ impl Store {
         Ok(Self { path: storage_dir })
     }
 
+    pub fn create(&self) {}
+
     pub fn list(&self) {}
 }
