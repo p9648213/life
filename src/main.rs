@@ -9,6 +9,10 @@ use life::{
     storage::store::Store,
 };
 
+pub struct Resource {
+    pub name: String
+}
+
 fn create_resourse<'buf, 'req>(request: &'req Request<'buf>, _state: &mut State) -> Response<'req> {
     if let Ok([_r_name]) = request.extract_form(["create_r_name"]) {
         // TODO persistence
@@ -31,7 +35,7 @@ fn delete_resourse<'buf, 'req>(request: &'req Request<'buf>, _state: &mut State)
 
 fn list_resourse<'buf, 'req>(_request: &'req Request<'buf>, state: &mut State) -> Response<'req> {
     let store = &state.store;
-    store.execute("LOAD resource");
+    store.list();
     let html = String::new();
     Response::html(StatusCode::Ok, &html)
 }
