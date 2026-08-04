@@ -1,9 +1,8 @@
 use crate::{
-    http::{
+    app::resource::model::Resource, http::{
         request::Request,
         response::{Response, StatusCode},
-    },
-    state::State,
+    }, state::State
 };
 
 pub fn create_resourse<'buf, 'req>(
@@ -37,7 +36,7 @@ pub fn list_resourse<'buf, 'req>(
     state: &mut State,
 ) -> Response<'req> {
     let store = &state.store;
-    store.list();
+    let _ = store.list::<Resource>("resources").unwrap_or_default();
     let html = String::new();
     Response::html(StatusCode::Ok, &html)
 }
