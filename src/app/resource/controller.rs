@@ -7,10 +7,15 @@ use crate::{
 
 pub fn create_resourse<'buf, 'req>(
     request: &'req Request<'buf>,
-    _state: &mut State,
+    state: &mut State,
 ) -> Response<'req> {
-    if let Ok([_r_name]) = request.extract_form(["create_r_name"]) {
-        // TODO persistence
+    if let Ok([r_name, r_number]) = request.extract_form(["create_r_name", "create_r_number"]) {
+        let store = &state.store;
+        let item = Resource {
+            name: r_name,
+            number: r_number.parse().unwrap_or_default()
+        };
+        let _ = store.insert_one("resources", item);
         Response::see_other("/resources")
             .unwrap_or_else(|err| Response::html(StatusCode::InternalServerError, &err.to_string()))
     } else {
