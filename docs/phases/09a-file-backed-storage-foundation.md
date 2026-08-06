@@ -2,6 +2,9 @@
 
 Goal: persist generic application record types through an explicit, bounded, and type-safe file-storage structure without an external serialization library.
 
+For a teaching-oriented explanation and implementation sequence, use the
+[Phase 09A learning guide](../guides/09a-file-backed-storage-guide.md).
+
 The names below describe responsibilities, not mandatory APIs. Choose the concrete types, modules, method names, and ownership yourself.
 
 ## Design Structure
