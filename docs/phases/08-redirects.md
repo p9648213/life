@@ -29,4 +29,4 @@ A successful resource `POST` returns `303 See Other` with a `Location` header po
 
 You are done when successful form submission redirects to a readable result and refreshing that result does not repeat the mutation.
 
-After this, continue with [Phase 09: File-Backed Storage](09-file-backed-storage.md).
+After this, continue with [Phase 09A: File-Backed Storage Foundation](09a-file-backed-storage-foundation.md).

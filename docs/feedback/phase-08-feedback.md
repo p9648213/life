@@ -49,6 +49,6 @@ I verified that:
 
 ## Ready For Phase 09
 
-You are ready to continue with [Phase 09: File-Backed Storage](../phases/09-file-backed-storage.md).
+You are ready to continue with [Phase 09A: File-Backed Storage Foundation](../phases/09a-file-backed-storage-foundation.md).
 
 Carry forward the ordering rule from this phase: a client should receive the success redirect only after the mutation and its required persistence have both succeeded. If saving fails, return an error response and follow the Phase 09 policy for restoring or retaining the in-memory state instead of redirecting as though the change were durable.
