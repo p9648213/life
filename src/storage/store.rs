@@ -9,7 +9,7 @@ use crate::storage::error::StoreError;
 
 #[derive(Debug)]
 pub struct Store {
-    path: PathBuf,
+    root: PathBuf,
 }
 
 impl Store {
@@ -25,11 +25,11 @@ impl Store {
                 storage_dir.display()
             )));
         }
-        Ok(Self { path: storage_dir })
+        Ok(Self { root: storage_dir })
     }
 
     pub fn open_collection(&self, collection_name: &str) -> Result<String, StoreError> {
-         let collection_path = self.path.join(collection_name);
+         let collection_path = self.root.join(collection_name);
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)

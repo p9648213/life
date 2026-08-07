@@ -82,7 +82,7 @@ Phase 05B is an optional, repeatable continuation. It does not block Phase 06A; 
 10. [In-Memory State](phases/07-in-memory-state.md)
 11. [Redirects](phases/08-redirects.md)
 12. [File-Backed Storage Foundation](phases/09a-file-backed-storage-foundation.md)
-    - [Phase 09A Learning and Step-by-Step Guide](guides/09a-file-backed-storage-guide.md)
+    - [Phase 09A Learning Guides](guides/phase-09a/README.md)
     - [File-Storage Performance Optimization (Deferred)](phases/09b-file-storage-performance-optimization.md)
 13. [Static Files and CSS](phases/10-static-files-css.md)
 14. [Cookies](phases/11-cookies.md)
