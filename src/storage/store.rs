@@ -1,15 +1,14 @@
 use std::{
     env,
-    fs::OpenOptions,
-    io::Read,
+    fs::{self},
     path::PathBuf,
 };
 
-use crate::storage::error::StoreError;
+use crate::storage::{collection::Colection, error::StoreError};
 
 #[derive(Debug)]
 pub struct Store {
-    root: PathBuf,
+    path: PathBuf,
 }
 
 impl Store {
@@ -25,32 +24,18 @@ impl Store {
                 storage_dir.display()
             )));
         }
-        Ok(Self { root: storage_dir })
+        Ok(Self { path: storage_dir })
     }
 
-    pub fn open_collection(&self, collection_name: &str) -> Result<String, StoreError> {
-         let collection_path = self.root.join(collection_name);
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(collection_path)
-            .map_err(|err| StoreError::ConnectionError(err.to_string()))?;
-        let mut raw = String::new();
-        file.read_to_string(&mut raw)
-            .map_err(|err| StoreError::ReadError(err.to_string()))?;
-        Ok(raw)
+    pub fn collection<T>(&self, name: &str) -> Colection<T> {
+        Colection::new(self.path.join(name))
     }
 
-    pub fn list<T>(&self, collection_name: &str) -> Result<Vec<T>, StoreError> {
-        let raw = self.open_collection(collection_name)?;
-        println!("Resouces: {raw}");
-        Ok(Vec::new())
-    }
-
-    pub fn insert_one<T>(&self, collection_name: &str, item: T) -> Result<bool, StoreError> {
-        let raw = self.open_collection(collection_name)?;
-        Ok(true)
+    pub fn create_collection(&self, name: &str) -> std::io::Result<()> {
+        let collection_path = self.path.join(name);
+        if !collection_path.is_file() {
+            fs::File::create(collection_path)?;
+        }
+        Ok(())
     }
 }

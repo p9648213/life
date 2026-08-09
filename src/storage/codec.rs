@@ -1,7 +1,3 @@
-trait Encode {
-    fn encode() {}
-}
-
-trait Decode: Sized {
-    fn decode() {}
+pub trait Encode {
+    fn encode(&self) -> Vec<u8>;
 }
