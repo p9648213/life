@@ -19,10 +19,9 @@ impl Store {
         );
         let storage_dir = manifest_dir.join(path);
         if !storage_dir.exists() || !storage_dir.is_dir() {
-            return Err(StoreError::ConnectionError(format!(
-                "Storage path does not exist: {}",
-                storage_dir.display()
-            )));
+            fs::create_dir(&storage_dir).map_err(|err| {
+                StoreError::ConnectionError(err.to_string())
+            })?;
         }
         Ok(Self { path: storage_dir })
     }
