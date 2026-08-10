@@ -1,25 +1,34 @@
 use crate::{
-    app::resource::model::Resource, constant::RESOURCE_COLLECTION, http::{
+    app::resource::model::Resource,
+    constant::RESOURCE_COLLECTION,
+    http::{
         request::Request,
         response::{Response, StatusCode},
-    }, state::State
+    },
+    state::State,
+    templates,
 };
 
 pub fn create_resourse<'buf, 'req>(
     request: &'req Request<'buf>,
     state: &mut State,
 ) -> Response<'req> {
-    if let Ok([r_name, r_number]) = request.extract_form(["create_r_name", "create_r_number"]) {
-        let store = &state.store;
-        let item = Resource {
-            name: r_name,
-            number: r_number.parse().unwrap_or_default(),
-        };
-
-        Response::see_other("/resources")
-            .unwrap_or_else(|err| Response::html(StatusCode::InternalServerError, &err.to_string()))
-    } else {
-        Response::text_plain(StatusCode::InternalServerError, "Error Parsing Form")
+    match request.extract_form(["create_r_name", "create_r_number"]) {
+        Ok([r_name, r_number]) => {
+            let store = &state.store;
+            let item = Resource {
+                name: r_name,
+                number: r_number.parse().unwrap_or_default(),
+            };
+            let resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+            match resource_collection.insert_one(item) {
+                Ok(_) => Response::see_other("/resources").unwrap_or_else(|err| {
+                    Response::html(StatusCode::InternalServerError, &err.to_string())
+                }),
+                Err(err) => Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
+            }
+        }
+        Err(err) => Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
     }
 }
 
@@ -40,14 +49,22 @@ pub fn list_resourse<'buf, 'req>(
     _request: &'req Request<'buf>,
     state: &mut State,
 ) -> Response<'req> {
-    println!("list resources");
     let store = &state.store;
-    let resource = store.collection::<Resource>(RESOURCE_COLLECTION);
-    let new_resource = Resource {
-        name: "test".to_string(),
-        number: 1
-    };
-    resource.insert_one(new_resource);
-    let html = String::new();
-    Response::html(StatusCode::Ok, &html)
+    let resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+    let resources = resource_collection.list();
+    match resources {
+        Ok(resources) => {
+            let mut html = String::new();
+            let resources: Vec<String> = resources
+                .into_iter()
+                .map(|r| format!("{}-{}", r.name, r.number))
+                .collect();
+            let view = templates::ResourceView {
+                list_resource: &resources.join(", "),
+            };
+            templates::render_resource(&mut html, view);
+            Response::html(StatusCode::Ok, &html)
+        }
+        Err(err) => Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
+    }
 }
