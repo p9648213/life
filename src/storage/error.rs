@@ -1,12 +1,26 @@
-use std::{array::TryFromSliceError, fmt::{self}, str::Utf8Error};
+use std::{
+    array::TryFromSliceError,
+    fmt::{self},
+    num::TryFromIntError,
+    str::Utf8Error,
+};
 
 #[derive(Debug)]
 pub enum StoreError {
     ConnectionError(String),
-    ReadError(String),
+    IoError(std::io::Error),
     FieldTooLarge(String),
     InvalidUtf8(Utf8Error),
-    TryFromSliceError(TryFromSliceError)
+    TryFromSliceError(TryFromSliceError),
+    TryFromIntError(TryFromIntError),
+    InvalidStorageFormat,
+    UnsupportVersion,
+}
+
+impl From<std::io::Error> for StoreError {
+    fn from(err: std::io::Error) -> Self {
+        StoreError::IoError(err)
+    }
 }
 
 impl From<Utf8Error> for StoreError {
@@ -21,6 +35,12 @@ impl From<TryFromSliceError> for StoreError {
     }
 }
 
+impl From<TryFromIntError> for StoreError {
+    fn from(err: TryFromIntError) -> Self {
+        StoreError::TryFromIntError(err)
+    }
+}
+
 impl std::error::Error for StoreError {}
 
 impl fmt::Display for StoreError {
@@ -29,8 +49,8 @@ impl fmt::Display for StoreError {
             StoreError::ConnectionError(err) => {
                 write!(f, "Error connecting storage: {err}")
             }
-            StoreError::ReadError(err) => {
-                write!(f, "Read error: {err}")
+            StoreError::IoError(err) => {
+                write!(f, "IO error: {err}")
             }
             StoreError::FieldTooLarge(err) => {
                 write!(f, "Field Too Large: {err}")
@@ -39,7 +59,16 @@ impl fmt::Display for StoreError {
                 write!(f, "Invalid UTF-8 In Payload: {err}")
             }
             StoreError::TryFromSliceError(err) => {
-                write!(f, "try_from error: {err}")
+                write!(f, "try_from slice error: {err}")
+            }
+            StoreError::TryFromIntError(err) => {
+                write!(f, "try_from int error: {err}")
+            }
+            StoreError::InvalidStorageFormat => {
+                write!(f, "Invalid storage format")
+            }
+            StoreError::UnsupportVersion => {
+                write!(f, "Unsupport version")
             }
         }
     }

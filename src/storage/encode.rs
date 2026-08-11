@@ -1,7 +1,7 @@
 use crate::storage::error::StoreError;
 
 pub trait Encode {
-    fn encode(&self) -> Result<Vec<u8>, StoreError>;
+    fn encode(&self, id: u32) -> Result<Vec<u8>, StoreError>;
 }
 
 pub struct Encoder {
@@ -24,8 +24,8 @@ impl Encoder {
     }
 
     pub fn write_string(&mut self, text: &str) -> Result<(), StoreError> {
-        let length = u32::try_from(text.len())
-            .map_err(|err| StoreError::FieldTooLarge(err.to_string()))?;
+        let length =
+            u32::try_from(text.len()).map_err(|err| StoreError::FieldTooLarge(err.to_string()))?;
         self.write_u32(length);
         self.bytes.extend_from_slice(text.as_bytes());
         Ok(())

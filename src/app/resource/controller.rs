@@ -16,10 +16,7 @@ pub fn create_resourse<'buf, 'req>(
     match request.extract_form(["create_r_name", "create_r_number"]) {
         Ok([r_name, r_number]) => {
             let store = &state.store;
-            let item = Resource {
-                name: r_name,
-                number: r_number.parse().unwrap_or_default(),
-            };
+            let item = Resource::new(r_name, r_number.parse().unwrap_or_default());
             let resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
             match resource_collection.insert_one(item) {
                 Ok(_) => Response::see_other("/resources").unwrap_or_else(|err| {
@@ -50,8 +47,12 @@ pub fn list_resourse<'buf, 'req>(
     state: &mut State,
 ) -> Response<'req> {
     let store = &state.store;
-    let resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+    let mut resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
     let resources = resource_collection.list();
+    let total = resource_collection
+        .record_count()
+        .unwrap_or_default()
+        .to_string();
     match resources {
         Ok(resources) => {
             let mut html = String::new();
@@ -61,6 +62,7 @@ pub fn list_resourse<'buf, 'req>(
                 .collect();
             let view = templates::ResourceView {
                 list_resource: &resources.join(", "),
+                total: &total,
             };
             templates::render_resource(&mut html, view);
             Response::html(StatusCode::Ok, &html)
