@@ -1,6 +1,6 @@
 # Phase 09B: File-Storage Performance Optimization (Deferred)
 
-Goal: improve one measured file-storage bottleneck while preserving the Phase 09A format, correctness, limits, and durability guarantees.
+Goal: improve one measured file-storage bottleneck while preserving the Phase 09A format, correctness, limits, and documented direct-mutation behavior.
 
 This is an optional, repeatable optimization phase. It does not block Phase 10. Enter it after [Phase 23: Benchmarking and Profiling](23-benchmarking-profiling.md), or earlier only when a reproducible storage benchmark already demonstrates a concrete problem.
 
@@ -16,11 +16,10 @@ Codec boilerplate may also be reduced here after several record types have been 
 
 - reuse record scratch buffers instead of allocating one buffer per record;
 - calculate or estimate encoded size to reserve bounded capacity;
-- encode through a buffered writer instead of holding a complete encoded file in memory;
-- stream snapshot replacement one record at a time to reduce peak memory;
+- use bounded buffering where measurement shows it reduces direct-mutation cost;
 - build a bounded in-memory ID-to-offset index for measured lookup costs;
-- introduce a snapshot plus append-only mutation log when rewrite cost is proven dominant;
-- compact a log under an explicit size or ratio policy;
+- reuse deleted space when measured file growth or byte movement justifies the added bookkeeping;
+- reduce how many existing bytes a direct mutation must move when benchmarked mutation cost is dominant;
 - add a new file-format version when the optimized representation is incompatible.
 - generate repetitive record `Encode` and `Decode` implementations with a declarative macro after the stable manual pattern is understood.
 
@@ -38,8 +37,8 @@ Memory mapping, borrowed decoded records, pages, and unsafe code require separat
 - Preserve or deliberately version the persistent format.
 - Preserve explicit errors for malformed, oversized, truncated, and unsupported data.
 - Preserve the rule that failed persistence cannot be reported as success.
-- Document crash recovery, compaction, and partial-write behavior if an append-only log is introduced.
-- Bound index size, log growth, temporary space, and recovery work under configured limits.
+- Document partial-write and interrupted-mutation behavior when an optimization changes the direct-write sequence.
+- Bound index size, free-space metadata, temporary space, and reopening work under configured limits.
 - Compare the optimized result with the same workload and environment used for the baseline.
 - Remove the optimization if the result is noise or the added complexity is not justified by the measured gain.
 
@@ -52,9 +51,8 @@ Memory mapping, borrowed decoded records, pages, and unsafe code require separat
 - maximum-size reads and mutations stay within the documented time and memory scaling;
 - buffer reuse or streaming tests show bounded allocation or working memory where practical;
 - indexes rebuild correctly after reopening and never return stale locations;
-- append-only recovery rejects or deliberately handles a truncated final entry;
-- compaction preserves exact live records and stable IDs;
-- failed optimized writes, flushes, renames, or compactions are not reported as success;
+- deleted-space reuse or page reorganization, if added, preserves exact live records and stable IDs;
+- failed optimized direct writes or flushes are not reported as success;
 - benchmark results include enough repeated samples to distinguish improvement from noise.
 
 ## Checkpoint

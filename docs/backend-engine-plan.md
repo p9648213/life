@@ -63,7 +63,7 @@ Phase 07 should introduce an application state boundary, not a hard-coded to-do 
 
 Add redirects, persistence, static files, cookies, sessions, authentication, and error mapping with clear tests. Keep the behavior explicit even if it is simple.
 
-Phase 09A establishes the correct, bounded file-storage format and snapshot replacement boundary. Phase 09B is a deferred, optional optimization track; enter it only after Phase 23 or another reproducible benchmark identifies a specific storage bottleneck.
+Phase 09A establishes a correct, bounded file-storage format with direct mutation of one collection file. Phase 09B is a deferred, optional optimization track; enter it only after Phase 23 or another reproducible benchmark identifies a specific storage bottleneck.
 
 By the end of this milestone, bad client input should become a reasonable HTTP response instead of a panic or silent success.
 
