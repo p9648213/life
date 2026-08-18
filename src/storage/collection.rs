@@ -61,6 +61,11 @@ impl<T> Colection<T> {
         Ok(())
     }
 
+    pub fn delete_one(&mut self, id: u32) -> Result<(), StoreError> {
+        let f = fs::OpenOptions::new().read(true).write(true).open(&self.path)?;
+        Ok(())
+    }
+
     pub fn list(&mut self) -> Result<Vec<T>, StoreError>
     where
         T: Decode,

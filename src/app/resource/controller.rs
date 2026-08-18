@@ -5,7 +5,7 @@ use crate::{
         request::Request,
         response::{Response, StatusCode},
     },
-    state::State,
+    state::{self, State},
     templates,
 };
 
@@ -31,12 +31,20 @@ pub fn create_resourse<'buf, 'req>(
 
 pub fn delete_resourse<'buf, 'req>(
     request: &'req Request<'buf>,
-    _state: &mut State,
+    state: &mut State,
 ) -> Response<'req> {
-    if let Ok([_r_name]) = request.extract_form(["delete_r_name"]) {
-        // TODO persistence
-        Response::see_other("/resources")
-            .unwrap_or_else(|err| Response::html(StatusCode::InternalServerError, &err.to_string()))
+    if let Ok([r_id]) = request.extract_form(["delete_r_id"]) {
+        let store = &state.store;
+        let mut resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+        match r_id.parse::<u32>() {
+            Ok(id) => match resource_collection.delete_one(id) {
+                Ok(_) => Response::see_other("/resources").unwrap_or_else(|err| {
+                    Response::html(StatusCode::InternalServerError, &err.to_string())
+                }),
+                Err(err) => Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
+            },
+            Err(_) => Response::text_plain(StatusCode::BadRequest, "Invalid resourse id"),
+        }
     } else {
         Response::html(StatusCode::BadRequest, "Id Not Found")
     }
@@ -58,7 +66,7 @@ pub fn list_resourse<'buf, 'req>(
             let mut html = String::new();
             let resources: Vec<String> = resources
                 .into_iter()
-                .map(|r| format!("{}-{}", r.name, r.number))
+                .map(|r| format!("id: {} - name: {} - number: {}", r.id, r.name, r.number))
                 .collect();
             let view = templates::ResourceView {
                 list_resource: &resources.join(", "),
