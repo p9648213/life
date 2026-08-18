@@ -15,6 +15,7 @@ pub enum StoreError {
     TryFromIntError(TryFromIntError),
     InvalidStorageFormat,
     UnsupportVersion,
+    StorageIndexIdNotFound
 }
 
 impl From<std::io::Error> for StoreError {
@@ -69,6 +70,9 @@ impl fmt::Display for StoreError {
             }
             StoreError::UnsupportVersion => {
                 write!(f, "Unsupport version")
+            }
+            StoreError::StorageIndexIdNotFound => {
+                write!(f, "Storage index id not found")
             }
         }
     }

@@ -5,7 +5,7 @@ use crate::{
         request::Request,
         response::{Response, StatusCode},
     },
-    state::{self, State},
+    state::State,
     templates,
 };
 
