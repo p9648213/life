@@ -53,16 +53,20 @@ impl<T> Colection<T> {
         Ok(())
     }
 
+    fn update_delete_index_id(&self, id: u32) -> Result<(), StoreError> {
+        Ok(())
+    }
+
     fn find_id_offset(&self, id: u32) -> Result<u64, StoreError> {
         let mut f = fs::OpenOptions::new().read(true).open(&self.index_path)?;
         f.seek(SeekFrom::Start(INDEX_RECORD_COUNT_OFFSET as u64))?;
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
         let record_count = u32::from_be_bytes(record_count_buf);
-        if id >= record_count {
+        if id > record_count {
             return Err(StoreError::StorageIndexIdNotFound);
         }
-        let entry_position = INDEX_HEADER_TOTAL_BYTES as u32 + id * INDEX_RECORD_LEN as u32;
+        let entry_position = INDEX_HEADER_TOTAL_BYTES as u32 + (id - 1) * INDEX_RECORD_LEN as u32;
         f.seek(SeekFrom::Start(entry_position as u64))?;
         let mut id_buf = [0u8; 4];
         f.read_exact(&mut id_buf)?;
@@ -112,12 +116,41 @@ impl<T> Colection<T> {
             .read(true)
             .write(true)
             .open(&self.store_path)?;
+        let file_len = f.metadata()?.len();
+        f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
+        let mut record_count_buf = [0u8; 4];
+        f.read_exact(&mut record_count_buf)?;
+        let record_count = u32::from_be_bytes(record_count_buf);
         let off_set = self.find_id_offset(id)?;
-        f.seek(SeekFrom::Start(off_set + STORAGE_PAYLOAD_LEN_SIZE as u64))?;
+        let current_payload_pos = f.seek(SeekFrom::Start(off_set))?;
+        let mut payload_len_buf = [0u8; 4];
+        f.read_exact(&mut payload_len_buf)?;
+        let payload_len = u32::from_be_bytes(payload_len_buf);
         let mut id_buf = [0u8; 4];
         f.read_exact(&mut id_buf)?;
-        let id = u32::from_be_bytes(id_buf);
-        println!("{}", id);
+        let payload_id = u32::from_be_bytes(id_buf);
+        if payload_id != id {
+            return Err(StoreError::IdNotMatch);
+        }
+        let total_payload_size = payload_len as u64 + STORAGE_PAYLOAD_LEN_SIZE as u64;
+        let total_len = current_payload_pos + total_payload_size;
+        if total_len == file_len {
+            f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
+            f.write_all(&(record_count - 1).to_be_bytes())?;
+            f.set_len(file_len - payload_len as u64 - STORAGE_PAYLOAD_LEN_SIZE as u64)?;
+        } else if total_len > file_len {
+            return Err(StoreError::OverflowPayloadSize);
+        } else {
+            f.seek(SeekFrom::Start(off_set + total_payload_size))?;
+            let remaining_len = (file_len - current_payload_pos - total_payload_size) as usize;
+            let mut remaining_buf = vec![0u8; remaining_len];
+            f.read_exact(&mut remaining_buf)?;
+            f.seek(SeekFrom::Start(off_set))?;
+            f.write_all(&remaining_buf)?;
+            f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
+            f.write_all(&(record_count - 1).to_be_bytes())?;
+            f.set_len(file_len - total_payload_size)?;
+        }
         Ok(())
     }
 

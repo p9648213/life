@@ -15,7 +15,9 @@ pub enum StoreError {
     TryFromIntError(TryFromIntError),
     InvalidStorageFormat,
     UnsupportVersion,
-    StorageIndexIdNotFound
+    StorageIndexIdNotFound,
+    IdNotMatch,
+    OverflowPayloadSize,
 }
 
 impl From<std::io::Error> for StoreError {
@@ -73,6 +75,12 @@ impl fmt::Display for StoreError {
             }
             StoreError::StorageIndexIdNotFound => {
                 write!(f, "Storage index id not found")
+            }
+            StoreError::IdNotMatch => {
+                write!(f, "Id not match")
+            }
+            StoreError::OverflowPayloadSize => {
+                write!(f, "Overflow Payload Size")
             }
         }
     }
