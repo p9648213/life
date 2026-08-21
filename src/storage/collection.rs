@@ -77,6 +77,9 @@ impl<T> Colection<T> {
         let mut offset_buf = [0u8; 8];
         f.read_exact(&mut offset_buf)?;
         let offset = u64::from_be_bytes(offset_buf);
+        if offset == 0 {
+            return Err(StoreError::StorageIndexIdNotFound);
+        }
         Ok(offset)
     }
 

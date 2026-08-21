@@ -16,6 +16,7 @@ pub enum StoreError {
     InvalidStorageFormat,
     UnsupportVersion,
     StorageIndexIdNotFound,
+    StorageIndexDeleted,
     IdNotMatch,
     OverflowPayloadSize,
 }
@@ -81,6 +82,9 @@ impl fmt::Display for StoreError {
             }
             StoreError::OverflowPayloadSize => {
                 write!(f, "Overflow Payload Size")
+            }
+            Self::StorageIndexDeleted => {
+                write!(f, "Storage index deleted")
             }
         }
     }
