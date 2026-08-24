@@ -1,8 +1,5 @@
 use std::{
-    fs,
-    io::{self, BufReader, Read, Seek, SeekFrom, Write},
-    marker::PhantomData,
-    path::PathBuf,
+    fs::{self, File}, io::{self, BufReader, Read, Seek, SeekFrom, Write}, marker::PhantomData, path::PathBuf,
 };
 
 use crate::{
@@ -53,12 +50,7 @@ impl<T> Colection<T> {
         Ok(())
     }
 
-    fn update_delete_index_id(&self, id: u32) -> Result<(), StoreError> {
-        Ok(())
-    }
-
-    fn find_id_offset(&self, id: u32) -> Result<u64, StoreError> {
-        let mut f = fs::OpenOptions::new().read(true).open(&self.index_path)?;
+    fn find_id_offset(&self, f: &mut File, id: u32) -> Result<u64, StoreError> {
         f.seek(SeekFrom::Start(INDEX_RECORD_COUNT_OFFSET as u64))?;
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
@@ -81,6 +73,35 @@ impl<T> Colection<T> {
             return Err(StoreError::StorageIndexIdNotFound);
         }
         Ok(offset)
+    }
+
+    fn find_and_update_id_offset(&self, id: u32) -> Result<u64, StoreError> {
+        let mut f = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&self.index_path)?;
+        let mut offset = self.find_id_offset(&mut f, id)?;
+        let return_offset = offset;
+        f.seek(SeekFrom::Current(-8))?;
+        f.write_all(&[0u8; 8])?;
+        loop {
+            match f.seek(SeekFrom::Current(4)) {
+                Ok(_) => {}
+                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(err) => return Err(StoreError::IoError(err)),
+            }
+            let mut offset_buf = [0u8; 8];
+            match f.read_exact(&mut offset_buf) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(err) => return Err(StoreError::IoError(err)),
+            }
+            let current_offset = u64::from_be_bytes(offset_buf);
+            f.seek(SeekFrom::Current(-8))?;
+            f.write_all(&offset.to_be_bytes())?;
+            offset = current_offset;
+        }
+        Ok(return_offset)
     }
 
     pub fn insert_one(&self, item: T) -> Result<(), StoreError>
@@ -124,7 +145,7 @@ impl<T> Colection<T> {
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
         let record_count = u32::from_be_bytes(record_count_buf);
-        let off_set = self.find_id_offset(id)?;
+        let off_set = self.find_and_update_id_offset(id)?;
         let current_payload_pos = f.seek(SeekFrom::Start(off_set))?;
         let mut payload_len_buf = [0u8; 4];
         f.read_exact(&mut payload_len_buf)?;
