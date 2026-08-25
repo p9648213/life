@@ -1,6 +1,6 @@
-# Phase 09B: File-Storage Performance Optimization (Deferred)
+# Phase 09C: File-Storage Performance Optimization (Deferred)
 
-Goal: improve one measured file-storage bottleneck while preserving the Phase 09A format, correctness, limits, and documented direct-mutation behavior.
+Goal: improve one measured file-storage bottleneck while preserving the Phase 09A format and mutation behavior plus the Phase 09B storage limits.
 
 This is an optional, repeatable optimization phase. It does not block Phase 10. Enter it after [Phase 23: Benchmarking and Profiling](23-benchmarking-profiling.md), or earlier only when a reproducible storage benchmark already demonstrates a concrete problem.
 
@@ -44,7 +44,7 @@ Memory mapping, borrowed decoded records, pages, and unsafe code require separat
 
 ## Tests and Measurements
 
-- all Phase 09A behavior tests still pass;
+- all Phase 09A and Phase 09B behavior tests still pass;
 - old-format fixtures remain readable, or migration and unsupported-version behavior are tested;
 - optimized and baseline implementations produce equivalent logical records;
 - macro-generated codecs, if added, produce the same documented bytes and errors as their manual equivalents;
