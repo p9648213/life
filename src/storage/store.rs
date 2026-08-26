@@ -1,7 +1,7 @@
 use std::{
     env,
     fs::{self},
-    io::Write,
+    io::{Error, Write},
     path::PathBuf,
 };
 
@@ -40,6 +40,9 @@ impl Store {
     }
 
     pub fn create_collection(&self, name: &str) -> std::io::Result<()> {
+        if PathBuf::from(name).is_absolute() {
+            return Err(Error::other("Collection path name must be relative"));
+        }
         let collection_path = self.path.join(format!("{}.{}", name, COLLECTION_EXTENSION));
         if !collection_path.is_file() {
             let mut file = fs::File::create(collection_path)?;

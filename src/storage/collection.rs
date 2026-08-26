@@ -1,13 +1,16 @@
 use std::{
-    fs::{self, File}, io::{self, BufReader, Read, Seek, SeekFrom, Write}, marker::PhantomData, path::PathBuf,
+    fs::{self, File},
+    io::{self, BufReader, Read, Seek, SeekFrom, Write},
+    marker::PhantomData,
+    path::PathBuf,
 };
 
 use crate::{
     constant::{
-        INDEX_HEADER_TOTAL_BYTES, INDEX_RECORD_COUNT_OFFSET, INDEX_RECORD_LEN,
-        STORAGE_HEADER_TOTAL_BYTES, STORAGE_MAGIC, STORAGE_MAGIC_END, STORAGE_NEXT_ID_OFFSET,
-        STORAGE_PAYLOAD_LEN_SIZE, STORAGE_RECORD_COUNT_OFFSET, STORAGE_VERSION,
-        STORAGE_VERSION_OFFSET,
+        INDEX_HEADER_TOTAL_BYTES, INDEX_MAGIC, INDEX_MAGIC_END, INDEX_RECORD_COUNT_OFFSET,
+        INDEX_RECORD_LEN, STORAGE_HEADER_TOTAL_BYTES, STORAGE_MAGIC, STORAGE_MAGIC_END,
+        STORAGE_NEXT_ID_OFFSET, STORAGE_PAYLOAD_LEN_SIZE, STORAGE_RECORD_COUNT_OFFSET,
+        STORAGE_VERSION, STORAGE_VERSION_OFFSET,
     },
     storage::{
         decode::{Decode, Decoder},
@@ -51,6 +54,12 @@ impl<T> Colection<T> {
     }
 
     fn find_id_offset(&self, f: &mut File, id: u32) -> Result<u64, StoreError> {
+        let mut magic_bytes_buff = [0u8; INDEX_MAGIC_END];
+        f.read_exact(&mut magic_bytes_buff)?;
+        let magic_bytes = str::from_utf8(&magic_bytes_buff)?;
+        if magic_bytes != INDEX_MAGIC {
+            return Err(StoreError::InvalidStorageIndexFormat);
+        }
         f.seek(SeekFrom::Start(INDEX_RECORD_COUNT_OFFSET as u64))?;
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
@@ -174,6 +183,9 @@ impl<T> Colection<T> {
             f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
             f.write_all(&(record_count - 1).to_be_bytes())?;
             f.set_len(file_len - total_payload_size)?;
+        }
+        if let Some(record_count) = self.record_count {
+            self.record_count = Some(record_count - 1);
         }
         Ok(())
     }

@@ -19,6 +19,7 @@ pub enum StoreError {
     StorageIndexDeleted,
     IdNotMatch,
     OverflowPayloadSize,
+    InvalidStorageIndexFormat
 }
 
 impl From<std::io::Error> for StoreError {
@@ -85,6 +86,9 @@ impl fmt::Display for StoreError {
             }
             Self::StorageIndexDeleted => {
                 write!(f, "Storage index deleted")
+            }
+            Self::InvalidStorageIndexFormat => {
+                write!(f, "Invalid storage index format")
             }
         }
     }
