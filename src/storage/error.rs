@@ -1,8 +1,5 @@
 use std::{
-    array::TryFromSliceError,
-    fmt::{self},
-    num::TryFromIntError,
-    str::Utf8Error,
+    array::TryFromSliceError, fmt::{self, write}, num::TryFromIntError, str::Utf8Error,
 };
 
 #[derive(Debug)]
@@ -19,7 +16,9 @@ pub enum StoreError {
     StorageIndexDeleted,
     IdNotMatch,
     OverflowPayloadSize,
-    InvalidStorageIndexFormat
+    InvalidStorageIndexFormat,
+    OverflowId,
+    UnexpectedEndOfPayload
 }
 
 impl From<std::io::Error> for StoreError {
@@ -84,11 +83,17 @@ impl fmt::Display for StoreError {
             StoreError::OverflowPayloadSize => {
                 write!(f, "Overflow Payload Size")
             }
-            Self::StorageIndexDeleted => {
+            StoreError::StorageIndexDeleted => {
                 write!(f, "Storage index deleted")
             }
-            Self::InvalidStorageIndexFormat => {
+            StoreError::InvalidStorageIndexFormat => {
                 write!(f, "Invalid storage index format")
+            }
+            StoreError::OverflowId => {
+                write!(f, "Overflow id")
+            }
+            StoreError::UnexpectedEndOfPayload => {
+                write!(f, "Unexpected end of payload")
             }
         }
     }

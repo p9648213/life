@@ -2,6 +2,7 @@ use std::{
     fs::{self, File},
     io::{self, BufReader, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
+    ops::Add,
     path::PathBuf,
 };
 
@@ -9,8 +10,8 @@ use crate::{
     constant::{
         INDEX_HEADER_TOTAL_BYTES, INDEX_MAGIC, INDEX_MAGIC_END, INDEX_RECORD_COUNT_OFFSET,
         INDEX_RECORD_LEN, STORAGE_HEADER_TOTAL_BYTES, STORAGE_MAGIC, STORAGE_MAGIC_END,
-        STORAGE_NEXT_ID_OFFSET, STORAGE_PAYLOAD_LEN_SIZE, STORAGE_RECORD_COUNT_OFFSET,
-        STORAGE_VERSION, STORAGE_VERSION_OFFSET,
+        STORAGE_NEXT_ID, STORAGE_NEXT_ID_OFFSET, STORAGE_PAYLOAD_LEN_SIZE,
+        STORAGE_RECORD_COUNT_OFFSET, STORAGE_VERSION, STORAGE_VERSION_OFFSET,
     },
     storage::{
         decode::{Decode, Decoder},
@@ -64,7 +65,7 @@ impl<T> Colection<T> {
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
         let record_count = u32::from_be_bytes(record_count_buf);
-        if id > record_count {
+        if id > record_count || id < STORAGE_NEXT_ID {
             return Err(StoreError::StorageIndexIdNotFound);
         }
         let entry_position = INDEX_HEADER_TOTAL_BYTES as u32 + (id - 1) * INDEX_RECORD_LEN as u32;
@@ -106,9 +107,11 @@ impl<T> Colection<T> {
                 Err(err) => return Err(StoreError::IoError(err)),
             }
             let current_offset = u64::from_be_bytes(offset_buf);
-            f.seek(SeekFrom::Current(-8))?;
-            f.write_all(&offset.to_be_bytes())?;
-            offset = current_offset;
+            if current_offset != 0 {
+                f.seek(SeekFrom::Current(-8))?;
+                f.write_all(&offset.to_be_bytes())?;
+                offset = current_offset;
+            }
         }
         Ok(return_offset)
     }
@@ -127,7 +130,11 @@ impl<T> Colection<T> {
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
         let id = u32::from_be_bytes(next_id_buf);
-        let next_id = id + 1;
+        let next_id = if let Some(value) = id.checked_add(1) {
+            value
+        } else {
+            return Err(StoreError::OverflowId);
+        };
         let record_count = u32::from_be_bytes(record_count_buf);
         let mut bytes = vec![];
         let payload = item.encode(id)?;
