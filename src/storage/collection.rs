@@ -2,7 +2,6 @@ use std::{
     fs::{self, File},
     io::{self, BufReader, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
-    ops::Add,
     path::PathBuf,
 };
 
@@ -146,8 +145,8 @@ impl<T> Colection<T> {
         bytes.extend_from_slice(&payload_size.to_be_bytes());
         bytes.extend_from_slice(&payload);
         let frame_offset = f.seek(SeekFrom::End(0))?;
-        f.write_all(&bytes)?;
         self.insert_index(id, frame_offset)?;
+        f.write_all(&bytes)?;
         Ok(())
     }
 
@@ -230,7 +229,16 @@ impl<T> Colection<T> {
             reader.read_exact(&mut payload)?;
             let mut decoder = Decoder::new(&payload);
             let item = T::decode(&mut decoder)?;
+            if !decoder.bytes.is_empty() {
+                return Err(StoreError::TrailingBytesInPayload);
+            }
             items.push(item);
+            if items.len() as u32 > record_count {
+                return Err(StoreError::RecordCountMismatch);
+            }
+        }
+        if record_count != items.len() as u32 {
+            return Err(StoreError::RecordCountMismatch);
         }
         Ok(items)
     }

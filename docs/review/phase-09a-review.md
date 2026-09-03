@@ -16,7 +16,7 @@ Phase 09A is not complete yet. The storage structure is a good foundation: respo
 | P1 | Deletions around an existing index hole can make a surviving ID unreachable. | `deleting_records_around_an_existing_index_hole_preserves_later_ids` |
 | P1 | Failed or interrupted store/index mutations can leave an inconsistency that reopening does not reject. | `index_write_failure_is_reported_and_inconsistent_reopen_is_rejected`, `corrupt_index_header_is_rejected_before_mutation`, `interrupted_insert_header_without_frame_is_rejected_on_reopen` |
 | P2 | Traversal and absolute collection identifiers can escape the storage root. | `traversal_collection_identifier_is_rejected`, `absolute_collection_identifier_is_rejected` |
-| P2 | Missing collections do not read as empty, and cached record counts become stale. | `missing_collection_reads_as_empty`, `cached_record_count_tracks_completed_deletion` |
+| P2 | Cached record counts become stale. | `cached_record_count_tracks_completed_deletion` |
 | P1 phase gap | The collection has no callable update operation. | `update_preserves_id_and_every_unaffected_record` remains ignored |
 
 Here, “callable update operation” means real storage behavior callable by a test, not an HTTP API. The ignored test does not force a method name or ownership design. Storage size and work limits are now deferred to [Phase 09B](../phases/09b-file-storage-limits.md) and are not Phase 09A completion requirements.

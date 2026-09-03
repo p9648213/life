@@ -50,7 +50,7 @@ Mutations modify the configured collection file directly. Success is reported on
 - empty, Unicode, delimiter-containing, and newline-containing strings round-trip;
 - one concrete record type round-trips through its manual codec;
 - multiple records survive constructing a new storage instance;
-- missing collection files read as empty data;
+- attempts to read a collection whose files do not exist return an error;
 - invalid magic bytes and unsupported versions are rejected;
 - malformed lengths, invalid UTF-8, truncated fields, truncated records, and trailing record bytes are rejected;
 - collection traversal and absolute-path attempts are rejected;

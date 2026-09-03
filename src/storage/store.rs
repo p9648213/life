@@ -1,7 +1,7 @@
 use std::{
     env,
     fs::{self},
-    io::{Error, Write},
+    io::{Error, ErrorKind, Write},
     path::PathBuf,
 };
 
@@ -40,8 +40,11 @@ impl Store {
     }
 
     pub fn create_collection(&self, name: &str) -> std::io::Result<()> {
-        if PathBuf::from(name).is_absolute() {
-            return Err(Error::other("Collection path name must be relative"));
+        if !Self::is_valid_collection_name(name) {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "invalid collection identifier",
+            ));
         }
         let collection_path = self.path.join(format!("{}.{}", name, COLLECTION_EXTENSION));
         if !collection_path.is_file() {
@@ -59,5 +62,12 @@ impl Store {
             file.write_all(&INDEX_RECORD_COUNT.to_be_bytes())?;
         }
         Ok(())
+    }
+
+    fn is_valid_collection_name(name: &str) -> bool {
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
     }
 }

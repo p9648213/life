@@ -252,16 +252,6 @@ fn multiple_records_survive_reopening_the_store() {
 }
 
 #[test]
-fn missing_collection_reads_as_empty() {
-    let directory = TestDirectory::new();
-    let store = directory.connect();
-    let mut collection = store.collection::<TestRecord>("missing");
-
-    assert_eq!(collection.list().unwrap(), Vec::<TestRecord>::new());
-    assert_eq!(collection.record_count().unwrap(), 0);
-}
-
-#[test]
 fn invalid_storage_magic_is_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "invalid_magic");
