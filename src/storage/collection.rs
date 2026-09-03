@@ -196,6 +196,19 @@ impl<T> Colection<T> {
         Ok(())
     }
 
+    pub fn update_one(&mut self, id: u32) -> Result<bool, StoreError> {
+        let mut f = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&self.store_path)?;
+        let offset = self.find_id_offset(&mut f, id)?;
+        f.seek(SeekFrom::Start(offset))?;
+        let mut len_buf = [0u8; 4];
+        f.read_exact(&mut len_buf)?;
+        let len = u32::from_be_bytes(len_buf) as usize;
+        Ok(true)
+    }
+
     pub fn list(&mut self) -> Result<Vec<T>, StoreError>
     where
         T: Decode,
