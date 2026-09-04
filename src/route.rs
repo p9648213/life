@@ -1,5 +1,5 @@
 use crate::{
-    app::resource::controller::{create_resourse, delete_resourse, list_resourse},
+    app::resource::controller::{create_resourse, delete_resourse, list_resourse, update_resource},
     server::Server,
     state::State,
 };
@@ -7,5 +7,6 @@ use crate::{
 pub fn create_routes(server: &mut Server<'_, State>) {
     server.routes.post("/resources/create", create_resourse);
     server.routes.post("/resources/delete", delete_resourse);
+    server.routes.post("/resources/update", update_resource);
     server.routes.get("/resources", list_resourse);
 }

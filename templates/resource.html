@@ -3,53 +3,252 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title></title>
+    <title>Resource Manager</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        color: #1e293b;
+        background: #f1f5f9;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        padding: 48px 20px;
+        background:
+          radial-gradient(circle at top left, #dbeafe 0, transparent 32%),
+          #f1f5f9;
+      }
+
+      main {
+        width: min(900px, 100%);
+        margin: 0 auto;
+      }
+
+      .page-header {
+        margin-bottom: 28px;
+      }
+
+      h1,
+      h2,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        margin-bottom: 8px;
+        font-size: clamp(2rem, 5vw, 3rem);
+        line-height: 1.1;
+        letter-spacing: -0.04em;
+        color: #0f172a;
+      }
+
+      .subtitle {
+        margin-bottom: 0;
+        color: #64748b;
+      }
+
+      .card {
+        margin-bottom: 18px;
+        padding: 24px;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+      }
+
+      .card h2 {
+        margin-bottom: 18px;
+        font-size: 1.1rem;
+        color: #0f172a;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        align-items: end;
+      }
+
+      .form-grid.update {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #475569;
+      }
+
+      input {
+        width: 100%;
+        min-height: 44px;
+        padding: 10px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        background: #fff;
+        color: #0f172a;
+        font: inherit;
+        outline: none;
+        transition:
+          border-color 150ms ease,
+          box-shadow 150ms ease;
+      }
+
+      input:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+      }
+
+      button {
+        min-height: 44px;
+        padding: 10px 18px;
+        border: 0;
+        border-radius: 9px;
+        background: #2563eb;
+        color: #fff;
+        font: inherit;
+        font-weight: 750;
+        cursor: pointer;
+        transition:
+          transform 150ms ease,
+          background 150ms ease;
+      }
+
+      button:hover {
+        background: #1d4ed8;
+        transform: translateY(-1px);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .form-grid > button {
+        grid-column: 1 / -1;
+        justify-self: start;
+      }
+
+      .delete-button {
+        background: #dc2626;
+      }
+
+      .delete-button:hover {
+        background: #b91c1c;
+      }
+
+      .resource-list {
+        line-height: 1.7;
+        overflow-wrap: anywhere;
+        color: #334155;
+      }
+
+      .resource-total {
+        display: inline-flex;
+        margin-top: 18px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #dbeafe;
+        color: #1d4ed8;
+        font-size: 0.85rem;
+        font-weight: 750;
+      }
+
+      @media (max-width: 700px) {
+        body {
+          padding: 28px 14px;
+        }
+
+        .form-grid,
+        .form-grid.update {
+          grid-template-columns: 1fr;
+        }
+
+        .card {
+          padding: 20px;
+        }
+
+        button {
+          width: 100%;
+        }
+      }
+    </style>
   </head>
   <body>
-    <form method="POST" action="/resources/create">
-      <label for="create_r_name">Resource Name: </label>
-      <input id="create_r_name" type="text" name="create_r_name" value="" />
-      <label for="create_r_number">Resource Number: </label>
-      <input id="create_r_number" type="text" name="create_r_number" value="" />
-      <button type="submit">Create</button>
-    </form>
-    <br />
-    <form method="POST" action="/resources/delete">
-      <label for="delete_r_id">Resource ID: </label>
-      <input id="delete_r_id" type="number" name="delete_r_id" value="" />
-      <button type="submit">Delete</button>
-    </form>
-    <br />
-    <div>
-      <label for="search_r_name">Search 1 resource: </label>
-      <input id="search_r_name" type="text" name="r_name" value="" />
-      <button id="search_button" type="button">Search</button>
-    </div>
-    <br />
-    <div>List Resources: {@list_resource}</div>
-    <div>Total Resources: {@total}</div>
+    <main>
+      <header class="page-header">
+        <h1>Resource Manager</h1>
+        <p class="subtitle">Create, update, and remove stored resources.</p>
+      </header>
+
+      <section class="card">
+        <h2>Create resource</h2>
+        <form class="form-grid" method="POST" action="/resources/create">
+          <div class="field">
+            <label for="create_r_name">Resource Name</label>
+            <input id="create_r_name" type="text" name="create_r_name" value="" />
+          </div>
+          <div class="field">
+            <label for="create_r_number">Resource Number</label>
+            <input id="create_r_number" type="text" name="create_r_number" value="" />
+          </div>
+          <button type="submit">Create resource</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Update resource</h2>
+        <form class="form-grid update" method="POST" action="/resources/update">
+          <div class="field">
+            <label for="update_r_id">Resource ID</label>
+            <input id="update_r_id" type="number" name="update_r_id" value="" />
+          </div>
+          <div class="field">
+            <label for="update_r_number">Resource Number</label>
+            <input
+              id="update_r_number"
+              type="number"
+              name="update_r_number"
+              value=""
+            />
+          </div>
+          <div class="field">
+            <label for="update_r_name">Resource Name</label>
+            <input id="update_r_name" type="text" name="update_r_name" value="" />
+          </div>
+          <button type="submit">Update resource</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Delete resource</h2>
+        <form class="form-grid" method="POST" action="/resources/delete">
+          <div class="field">
+            <label for="delete_r_id">Resource ID</label>
+            <input id="delete_r_id" type="number" name="delete_r_id" value="" />
+          </div>
+          <button class="delete-button" type="submit">Delete resource</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Stored resources</h2>
+        <div class="resource-list">{@list_resource}</div>
+        <div class="resource-total">Total: {@total}</div>
+      </section>
+    </main>
   </body>
-  <script>
-    const searchInput = document.getElementById("search_r_name");
-    const searchButton = document.getElementById("search_button");
-
-    function searchResource() {
-      const name = searchInput.value.trim();
-
-      if (!name) {
-        return;
-      }
-
-      const params = new URLSearchParams({ name });
-      window.location.href = `/resources?${params}`;
-    }
-
-    searchButton.addEventListener("click", searchResource);
-
-    searchInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        searchResource();
-      }
-    });
-  </script>
 </html>

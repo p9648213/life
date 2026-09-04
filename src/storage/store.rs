@@ -8,7 +8,7 @@ use std::{
 use crate::{
     constant::{
         COLLECTION_EXTENSION, INDEX_EXTENSION, INDEX_MAGIC, INDEX_RECORD_COUNT, INDEX_VERSION,
-        STORAGE_MAGIC, STORAGE_NEXT_ID, STORAGE_RECORD_COUNT, STORAGE_VERSION,
+        STORAGE_DEAD_BYTES, STORAGE_MAGIC, STORAGE_NEXT_ID, STORAGE_RECORD_COUNT, STORAGE_VERSION,
     },
     storage::{collection::Colection, error::StoreError},
 };
@@ -53,6 +53,7 @@ impl Store {
             file.write_all(&[STORAGE_VERSION])?;
             file.write_all(&STORAGE_NEXT_ID.to_be_bytes())?;
             file.write_all(&STORAGE_RECORD_COUNT.to_be_bytes())?;
+            file.write_all(&STORAGE_DEAD_BYTES.to_be_bytes())?;
         }
         let index_path = self.path.join(format!("{}.{}", name, INDEX_EXTENSION));
         if !index_path.is_file() {

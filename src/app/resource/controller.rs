@@ -50,6 +50,37 @@ pub fn delete_resourse<'buf, 'req>(
     }
 }
 
+pub fn update_resource<'buf, 'req>(
+    request: &'req Request<'buf>,
+    state: &mut State,
+) -> Response<'req> {
+    if let Ok([r_id, r_name, r_number]) =
+        request.extract_form(["update_r_id", "update_r_name", "update_r_number"])
+    {
+        let store = &state.store;
+        let mut resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+        let Ok(r_id) = r_id.parse::<u32>() else {
+            return Response::html(StatusCode::BadRequest, "Error parsing id");
+        };
+        let Ok(r_number) = r_number.parse::<u32>() else {
+            return Response::html(StatusCode::BadRequest, "Error parsing number");
+        };
+        let update_resource = Resource {
+            id: r_id,
+            name: r_name,
+            number: r_number,
+        };
+        match resource_collection.update_one(r_id, update_resource) {
+            Ok(_) => Response::see_other("/resources").unwrap_or_else(|err| {
+                Response::html(StatusCode::InternalServerError, &err.to_string())
+            }),
+            Err(err) => Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
+        }
+    } else {
+        Response::html(StatusCode::BadRequest, "Missing fields")
+    }
+}
+
 pub fn list_resourse<'buf, 'req>(
     _request: &'req Request<'buf>,
     state: &mut State,
