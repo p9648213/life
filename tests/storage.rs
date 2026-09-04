@@ -8,8 +8,10 @@ use std::{
 
 use life::{
     constant::{
-        COLLECTION_EXTENSION, INDEX_EXTENSION, STORAGE_HEADER_TOTAL_BYTES, STORAGE_MAGIC,
-        STORAGE_NEXT_ID_OFFSET, STORAGE_RECORD_COUNT_OFFSET, STORAGE_VERSION,
+        COLLECTION_EXTENSION, INDEX_EXTENSION, STORAGE_DEAD_BYTES_OFFSET,
+        STORAGE_HEADER_TOTAL_BYTES, STORAGE_MAGIC, STORAGE_NEXT_ID_OFFSET,
+        STORAGE_PAYLOAD_FLAG_SIZE, STORAGE_PAYLOAD_FRAME_LIVE, STORAGE_PAYLOAD_FRAME_OFF,
+        STORAGE_PAYLOAD_LEN_SIZE, STORAGE_RECORD_COUNT_OFFSET, STORAGE_VERSION,
         STORAGE_VERSION_OFFSET,
     },
     storage::{
@@ -136,18 +138,20 @@ fn encoded_payload(id: u32, name: &str, number: u32) -> Vec<u8> {
         .expect("encode test record")
 }
 
-fn storage_header(next_id: u32, record_count: u32) -> Vec<u8> {
+fn storage_header(next_id: u32, record_count: u32, dead_bytes: u64) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(STORAGE_HEADER_TOTAL_BYTES);
     bytes.extend_from_slice(STORAGE_MAGIC.as_bytes());
     bytes.push(STORAGE_VERSION);
     bytes.extend_from_slice(&next_id.to_be_bytes());
     bytes.extend_from_slice(&record_count.to_be_bytes());
+    bytes.extend_from_slice(&dead_bytes.to_be_bytes());
     assert_eq!(bytes.len(), STORAGE_HEADER_TOTAL_BYTES);
     bytes
 }
 
 fn append_frame(bytes: &mut Vec<u8>, payload: &[u8]) {
     let payload_len = u32::try_from(payload.len()).expect("test payload length fits u32");
+    bytes.extend_from_slice(STORAGE_PAYLOAD_FRAME_LIVE);
     bytes.extend_from_slice(&payload_len.to_be_bytes());
     bytes.extend_from_slice(payload);
 }
@@ -252,6 +256,17 @@ fn multiple_records_survive_reopening_the_store() {
 }
 
 #[test]
+fn uncached_record_count_reads_only_the_record_count_header_field() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "uncached_count");
+    let collection = store.collection::<TestRecord>("uncached_count");
+    collection.insert_one(TestRecord::new("one", 1)).unwrap();
+    collection.insert_one(TestRecord::new("two", 2)).unwrap();
+
+    assert_eq!(collection.record_count().unwrap(), 2);
+}
+
+#[test]
 fn invalid_storage_magic_is_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "invalid_magic");
@@ -292,7 +307,7 @@ fn invalid_utf8_inside_a_record_is_rejected() {
     payload.extend_from_slice(&1u32.to_be_bytes());
     payload.push(0xff);
     payload.extend_from_slice(&7u32.to_be_bytes());
-    let mut bytes = storage_header(2, 1);
+    let mut bytes = storage_header(2, 1, 0);
     append_frame(&mut bytes, &payload);
     write_store_bytes(&directory, "invalid_utf8", &bytes);
     let mut collection = store.collection::<TestRecord>("invalid_utf8");
@@ -304,7 +319,8 @@ fn invalid_utf8_inside_a_record_is_rejected() {
 fn truncated_record_payload_is_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "truncated_record");
-    let mut bytes = storage_header(2, 1);
+    let mut bytes = storage_header(2, 1, 0);
+    bytes.extend_from_slice(STORAGE_PAYLOAD_FRAME_LIVE);
     bytes.extend_from_slice(&12u32.to_be_bytes());
     bytes.extend_from_slice(&[0, 0, 0]);
     write_store_bytes(&directory, "truncated_record", &bytes);
@@ -328,7 +344,7 @@ fn field_length_larger_than_its_payload_returns_error_instead_of_panicking() {
     payload.extend_from_slice(&1u32.to_be_bytes());
     payload.extend_from_slice(&100u32.to_be_bytes());
     payload.extend_from_slice(b"short");
-    let mut bytes = storage_header(2, 1);
+    let mut bytes = storage_header(2, 1, 0);
     append_frame(&mut bytes, &payload);
     write_store_bytes(&directory, "truncated_field", &bytes);
     let mut collection = store.collection::<TestRecord>("truncated_field");
@@ -340,7 +356,8 @@ fn field_length_larger_than_its_payload_returns_error_instead_of_panicking() {
 fn partial_frame_length_prefix_is_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "partial_prefix");
-    let mut bytes = storage_header(2, 1);
+    let mut bytes = storage_header(2, 1, 0);
+    bytes.extend_from_slice(STORAGE_PAYLOAD_FRAME_LIVE);
     bytes.extend_from_slice(&[0, 0, 0]);
     write_store_bytes(&directory, "partial_prefix", &bytes);
     let mut collection = store.collection::<TestRecord>("partial_prefix");
@@ -352,7 +369,7 @@ fn partial_frame_length_prefix_is_rejected() {
 fn record_count_larger_than_available_frames_is_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "missing_frame");
-    let mut bytes = storage_header(3, 2);
+    let mut bytes = storage_header(3, 2, 0);
     append_frame(&mut bytes, &encoded_payload(1, "only", 1));
     write_store_bytes(&directory, "missing_frame", &bytes);
     let mut collection = store.collection::<TestRecord>("missing_frame");
@@ -364,7 +381,7 @@ fn record_count_larger_than_available_frames_is_rejected() {
 fn frames_beyond_the_declared_record_count_are_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "trailing_frame");
-    let mut bytes = storage_header(3, 1);
+    let mut bytes = storage_header(3, 1, 0);
     append_frame(&mut bytes, &encoded_payload(1, "declared", 1));
     append_frame(&mut bytes, &encoded_payload(2, "trailing", 2));
     write_store_bytes(&directory, "trailing_frame", &bytes);
@@ -379,10 +396,41 @@ fn trailing_bytes_inside_a_framed_record_are_rejected() {
     let store = create_collection(&directory, "trailing_payload");
     let mut payload = encoded_payload(1, "valid fields", 1);
     payload.push(0xff);
-    let mut bytes = storage_header(2, 1);
+    let mut bytes = storage_header(2, 1, 0);
     append_frame(&mut bytes, &payload);
     write_store_bytes(&directory, "trailing_payload", &bytes);
     let mut collection = store.collection::<TestRecord>("trailing_payload");
+
+    assert_operation_returns_error_without_panicking(|| collection.list());
+}
+
+#[test]
+fn invalid_frame_flag_is_rejected() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "invalid_frame_flag");
+    let mut bytes = storage_header(1, 0, 0);
+    bytes.push(0b0000_0010);
+    bytes.extend_from_slice(&0u32.to_be_bytes());
+    write_store_bytes(&directory, "invalid_frame_flag", &bytes);
+    let mut collection = store.collection::<TestRecord>("invalid_frame_flag");
+
+    assert_operation_returns_error_without_panicking(|| collection.list());
+}
+
+#[test]
+fn truncated_tombstoned_frame_is_rejected() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "truncated_tombstone");
+    let declared_payload_len = 8u32;
+    let dead_bytes = STORAGE_PAYLOAD_FLAG_SIZE as u64
+        + STORAGE_PAYLOAD_LEN_SIZE as u64
+        + u64::from(declared_payload_len);
+    let mut bytes = storage_header(1, 0, dead_bytes);
+    bytes.extend_from_slice(STORAGE_PAYLOAD_FRAME_OFF);
+    bytes.extend_from_slice(&declared_payload_len.to_be_bytes());
+    bytes.extend_from_slice(&[0, 0, 0]);
+    write_store_bytes(&directory, "truncated_tombstone", &bytes);
+    let mut collection = store.collection::<TestRecord>("truncated_tombstone");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -403,17 +451,15 @@ fn absolute_collection_identifier_is_rejected() {
     let store = directory.connect();
     let outside_collection = directory.root.join("absolute-escape");
 
-    assert!(
-        store
-            .create_collection(outside_collection.to_str().unwrap())
-            .is_err()
-    );
+    assert!(store
+        .create_collection(outside_collection.to_str().unwrap())
+        .is_err());
     assert!(!directory.root.join("absolute-escape.store").exists());
     assert!(!directory.root.join("absolute-escape.idx").exists());
 }
 
 #[test]
-fn middle_deletion_physically_removes_bytes_and_preserves_other_records() {
+fn middle_deletion_tombstones_bytes_and_preserves_other_records() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "delete_middle");
     let mut collection = store.collection::<TestRecord>("delete_middle");
@@ -426,9 +472,10 @@ fn middle_deletion_physically_removes_bytes_and_preserves_other_records() {
     collection
         .insert_one(TestRecord::new("record-three", 3))
         .unwrap();
-    let original_len = fs::metadata(directory.store_path("delete_middle"))
-        .unwrap()
-        .len();
+    let deleted_payload = encoded_payload(2, "unique-deleted-record", 2);
+    let deleted_frame_len =
+        (STORAGE_PAYLOAD_FLAG_SIZE + STORAGE_PAYLOAD_LEN_SIZE + deleted_payload.len()) as u64;
+    let original_bytes = fs::read(directory.store_path("delete_middle")).unwrap();
 
     collection.delete_one(2).unwrap();
 
@@ -447,16 +494,30 @@ fn middle_deletion_physically_removes_bytes_and_preserves_other_records() {
             },
         ]
     );
-    assert!(
-        fs::metadata(directory.store_path("delete_middle"))
-            .unwrap()
-            .len()
-            < original_len
-    );
-    assert!(!file_contains(
+    let updated_bytes = fs::read(directory.store_path("delete_middle")).unwrap();
+    assert_eq!(updated_bytes.len(), original_bytes.len());
+    assert!(file_contains(
         &directory.store_path("delete_middle"),
         b"unique-deleted-record"
     ));
+    assert_eq!(
+        u64::from_be_bytes(
+            updated_bytes[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+                .try_into()
+                .unwrap()
+        ),
+        deleted_frame_len
+    );
+    let deleted_payload_offset = updated_bytes
+        .windows(deleted_payload.len())
+        .position(|window| window == deleted_payload)
+        .unwrap();
+    let deleted_flag_offset =
+        deleted_payload_offset - STORAGE_PAYLOAD_LEN_SIZE - STORAGE_PAYLOAD_FLAG_SIZE;
+    assert_eq!(
+        &updated_bytes[deleted_flag_offset..deleted_flag_offset + STORAGE_PAYLOAD_FLAG_SIZE],
+        STORAGE_PAYLOAD_FRAME_OFF
+    );
 }
 
 #[test]
@@ -612,7 +673,7 @@ fn corrupt_index_header_is_rejected_before_mutation() {
 fn interrupted_insert_header_without_frame_is_rejected_on_reopen() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "interrupted_insert");
-    let bytes = storage_header(2, 1);
+    let bytes = storage_header(2, 1, 0);
     write_store_bytes(&directory, "interrupted_insert", &bytes);
     let mut collection = store.collection::<TestRecord>("interrupted_insert");
 
@@ -647,21 +708,97 @@ fn large_valid_file_decodes_each_payload_once() {
 }
 
 #[test]
-fn record_count_header_uses_the_documented_offset() {
-    let bytes = storage_header(9, 7);
+fn storage_header_fields_use_the_documented_offsets() {
+    let bytes = storage_header(9, 7, 123);
 
     assert_eq!(
         u32::from_be_bytes(
-            bytes[STORAGE_RECORD_COUNT_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+            bytes[STORAGE_RECORD_COUNT_OFFSET..STORAGE_DEAD_BYTES_OFFSET]
                 .try_into()
                 .unwrap()
         ),
         7
     );
+    assert_eq!(
+        u64::from_be_bytes(
+            bytes[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+                .try_into()
+                .unwrap()
+        ),
+        123
+    );
 }
 
 #[test]
-#[ignore = "replace with a behavior test after an update mutation is exposed"]
 fn update_preserves_id_and_every_unaffected_record() {
-    panic!("Phase 09A still needs a direct update mutation");
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "update_record");
+    let mut collection = store.collection::<TestRecord>("update_record");
+    for number in 1..=3 {
+        collection
+            .insert_one(TestRecord::new(format!("record-{number}"), number))
+            .unwrap();
+    }
+
+    collection
+        .update_one(2, TestRecord::new("updated-record-2", 22))
+        .unwrap();
+
+    let mut records = collection.list().unwrap();
+    records.sort_by_key(|record| record.id);
+    assert_eq!(
+        records,
+        vec![
+            TestRecord {
+                id: 1,
+                name: "record-1".into(),
+                number: 1,
+            },
+            TestRecord {
+                id: 2,
+                name: "updated-record-2".into(),
+                number: 22,
+            },
+            TestRecord {
+                id: 3,
+                name: "record-3".into(),
+                number: 3,
+            },
+        ]
+    );
+
+    drop(collection);
+    drop(store);
+    let reopened_store = directory.connect();
+    let mut reopened = reopened_store.collection::<TestRecord>("update_record");
+    let mut reopened_records = reopened.list().unwrap();
+    reopened_records.sort_by_key(|record| record.id);
+    assert_eq!(reopened_records, records);
+}
+
+#[test]
+fn update_adds_the_replaced_frame_to_dead_bytes() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "update_dead_bytes");
+    let mut collection = store.collection::<TestRecord>("update_dead_bytes");
+    collection
+        .insert_one(TestRecord::new("original-record", 1))
+        .unwrap();
+    let replaced_payload = encoded_payload(1, "original-record", 1);
+    let replaced_frame_len =
+        (STORAGE_PAYLOAD_FLAG_SIZE + STORAGE_PAYLOAD_LEN_SIZE + replaced_payload.len()) as u64;
+
+    collection
+        .update_one(1, TestRecord::new("replacement-record", 2))
+        .unwrap();
+
+    let bytes = fs::read(directory.store_path("update_dead_bytes")).unwrap();
+    assert_eq!(
+        u64::from_be_bytes(
+            bytes[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+                .try_into()
+                .unwrap()
+        ),
+        replaced_frame_len
+    );
 }

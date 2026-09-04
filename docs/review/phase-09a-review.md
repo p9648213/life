@@ -1,35 +1,31 @@
 # Phase 09A Review
 
-Review date: 2026-08-25
+Review date: 2026-09-04
 
 ## Result
 
-Phase 09A is not complete yet. The storage structure is a good foundation: responsibilities are separated, integers use explicit big-endian encoding, records are framed, IDs persist, and deletion physically removes record bytes.
+Phase 09A is not complete yet. The current format uses explicit big-endian integers, persistent IDs, live/tombstoned record frames, a direct ID-offset index, and header metadata for live records and dead bytes. Deletion now tombstones its frame instead of physically removing it, and update appends a replacement before tombstoning the old frame.
 
 ## Findings
 
 | Priority | Finding | Regression tests |
 | --- | --- | --- |
-| P1 | ID `0` and exhausted IDs can panic because arithmetic is unchecked. | `deleting_id_zero_returns_error_instead_of_panicking`, `exhausted_next_id_returns_error_instead_of_panicking_or_reusing_zero` |
-| P1 | Truncated primitive and field reads can panic instead of returning a storage error. | `truncated_primitive_returns_error_instead_of_panicking`, `field_length_larger_than_its_payload_returns_error_instead_of_panicking` |
-| P1 | `list()` ignores `record_count` and accepts partial prefixes, missing frames, extra frames, and trailing payload bytes. | `partial_frame_length_prefix_is_rejected`, `record_count_larger_than_available_frames_is_rejected`, `frames_beyond_the_declared_record_count_are_rejected`, `trailing_bytes_inside_a_framed_record_are_rejected` |
-| P1 | Deletions around an existing index hole can make a surviving ID unreachable. | `deleting_records_around_an_existing_index_hole_preserves_later_ids` |
-| P1 | Failed or interrupted store/index mutations can leave an inconsistency that reopening does not reject. | `index_write_failure_is_reported_and_inconsistent_reopen_is_rejected`, `corrupt_index_header_is_rejected_before_mutation`, `interrupted_insert_header_without_frame_is_rejected_on_reopen` |
-| P2 | Traversal and absolute collection identifiers can escape the storage root. | `traversal_collection_identifier_is_rejected`, `absolute_collection_identifier_is_rejected` |
-| P2 | Cached record counts become stale. | `cached_record_count_tracks_completed_deletion` |
-| P1 phase gap | The collection has no callable update operation. | `update_preserves_id_and_every_unaffected_record` remains ignored |
+| P1 | An uncached `record_count()` reads through the following `dead_bytes` field and returns a slice-conversion error. | `uncached_record_count_reads_only_the_record_count_header_field` |
+| P1 | `list()` accepts an unknown frame-state byte instead of rejecting malformed storage. | `invalid_frame_flag_is_rejected` |
+| P1 | A tombstoned frame whose declared payload extends beyond EOF is accepted because seeking can move beyond the physical file end. | `truncated_tombstoned_frame_is_rejected` |
+| P1 | Update tombstones the replaced frame but does not add its full frame length to `dead_bytes`. | `update_adds_the_replaced_frame_to_dead_bytes` |
 
-Here, “callable update operation” means real storage behavior callable by a test, not an HTTP API. The ignored test does not force a method name or ownership design. Storage size and work limits are now deferred to [Phase 09B](../phases/09b-file-storage-limits.md) and are not Phase 09A completion requirements.
+The callable update behavior now preserves the record ID and unaffected records across reopening. Storage size and work limits remain in [Phase 09B](../phases/09b-file-storage-limits.md). Reuse or compaction of accumulated tombstoned space remains a measured [Phase 09C](../phases/09c-file-storage-performance-optimization.md) concern.
 
 ## Tests
 
 The Phase 09A suite is in [`tests/storage.rs`](../../tests/storage.rs).
 
 ```text
-29 tests total
-12 passed
-16 failed against current production behavior
-1 ignored pending update behavior
+32 tests total
+28 passed
+4 failed against current production behavior
+0 ignored
 ```
 
 Run it with:
@@ -38,11 +34,9 @@ Run it with:
 cargo test --test storage -- --test-threads=1
 ```
 
-Compilation and static verification:
+Current static verification:
 
 ```text
-cargo test --workspace --no-run                          passed
-cargo clippy --all-targets --all-features -- -D warnings passed
-rustfmt --edition 2024 --check tests/storage.rs           passed
-git diff --check                                          passed
+rustfmt --edition 2021 --check tests/storage.rs passed
+git diff --check                                passed
 ```

@@ -18,8 +18,8 @@ Codec boilerplate may also be reduced here after several record types have been 
 - calculate or estimate encoded size to reserve bounded capacity;
 - use bounded buffering where measurement shows it reduces direct-mutation cost;
 - build a bounded in-memory ID-to-offset index for measured lookup costs;
-- reuse deleted space when measured file growth or byte movement justifies the added bookkeeping;
-- reduce how many existing bytes a direct mutation must move when benchmarked mutation cost is dominant;
+- reuse tombstoned space or compact tombstoned frames when measured file growth justifies the added bookkeeping;
+- reduce scanning work caused by accumulated tombstoned frames when benchmarked read cost is dominant;
 - add a new file-format version when the optimized representation is incompatible.
 - generate repetitive record `Encode` and `Decode` implementations with a declarative macro after the stable manual pattern is understood.
 
@@ -51,7 +51,7 @@ Memory mapping, borrowed decoded records, pages, and unsafe code require separat
 - maximum-size reads and mutations stay within the documented time and memory scaling;
 - buffer reuse or streaming tests show bounded allocation or working memory where practical;
 - indexes rebuild correctly after reopening and never return stale locations;
-- deleted-space reuse or page reorganization, if added, preserves exact live records and stable IDs;
+- tombstoned-space reuse, compaction, or page reorganization, if added, preserves exact live records and stable IDs;
 - failed optimized direct writes or flushes are not reported as success;
 - benchmark results include enough repeated samples to distinguish improvement from noise.
 
