@@ -24,6 +24,8 @@ pub enum StoreError {
     UnexpectedEndOfPayload,
     RecordCountMismatch,
     TrailingBytesInPayload,
+    InvalidFrameFlag(u8),
+    TruncatedFrame
 }
 
 impl From<std::io::Error> for StoreError {
@@ -105,6 +107,12 @@ impl fmt::Display for StoreError {
             }
             StoreError::TrailingBytesInPayload => {
                 write!(f, "Trailing bytes in payload")
+            }
+            StoreError::InvalidFrameFlag(flag) => {
+                write!(f, "Invalid Frame Flag: {flag}")
+            }
+            StoreError::TruncatedFrame => {
+                write!(f, "Storage file ends before the frame is complete")
             }
         }
     }

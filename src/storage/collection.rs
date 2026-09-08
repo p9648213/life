@@ -190,6 +190,7 @@ impl<T> Colection<T> {
     {
         let f = fs::OpenOptions::new().read(true).open(&self.store_path)?;
         let mut reader = BufReader::new(f);
+        let file_len = reader.get_ref().metadata()?.len();
         let mut header_buf = [0u8; STORAGE_HEADER_TOTAL_BYTES];
         reader.read_exact(&mut header_buf)?;
         let magic_bytes = str::from_utf8(&header_buf[..STORAGE_MAGIC_END])?;
@@ -216,10 +217,19 @@ impl<T> Colection<T> {
             let mut len_buf = [0u8; 4];
             match reader.read_exact(&mut len_buf) {
                 Ok(()) => {}
-                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+                    return Err(StoreError::TruncatedFrame);
+                }
                 Err(err) => return Err(StoreError::IoError(err)),
             };
             let len = u32::from_be_bytes(len_buf) as usize;
+            let payload_start = reader.stream_position()?;
+            let remaining = file_len
+                .checked_sub(payload_start)
+                .ok_or(StoreError::TruncatedFrame)?;
+            if len > remaining as usize {
+                return Err(StoreError::TruncatedFrame);
+            }
             if flag == 0 {
                 reader.seek(SeekFrom::Current(len as i64))?;
             } else if flag == 1 {
@@ -234,6 +244,8 @@ impl<T> Colection<T> {
                 if items.len() as u32 > record_count {
                     return Err(StoreError::RecordCountMismatch);
                 }
+            } else {
+                return Err(StoreError::InvalidFrameFlag(flag));
             }
         }
         if record_count != items.len() as u32 {

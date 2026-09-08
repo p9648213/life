@@ -366,6 +366,30 @@ fn partial_frame_length_prefix_is_rejected() {
 }
 
 #[test]
+fn partial_frame_length_after_declared_records_is_rejected() {
+    for flag in [STORAGE_PAYLOAD_FRAME_LIVE, STORAGE_PAYLOAD_FRAME_OFF] {
+        for prefix_len in 0..STORAGE_PAYLOAD_LEN_SIZE {
+            let directory = TestDirectory::new();
+            let store = create_collection(&directory, "trailing_partial_prefix");
+            let mut bytes = storage_header(2, 1, 0);
+            append_frame(&mut bytes, &encoded_payload(1, "complete", 1));
+            write_store_bytes(&directory, "trailing_partial_prefix", &bytes);
+            let mut collection = store.collection::<TestRecord>("trailing_partial_prefix");
+
+            // EOF between frames is valid, and the live count already matches.
+            assert_eq!(collection.list().expect("read complete frame").len(), 1);
+
+            bytes.extend_from_slice(flag);
+            bytes.extend_from_slice(&8u32.to_be_bytes()[..prefix_len]);
+            write_store_bytes(&directory, "trailing_partial_prefix", &bytes);
+
+            // A flag starts another frame, which requires all four length bytes.
+            assert_operation_returns_error_without_panicking(|| collection.list());
+        }
+    }
+}
+
+#[test]
 fn record_count_larger_than_available_frames_is_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "missing_frame");
