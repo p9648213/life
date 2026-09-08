@@ -17,7 +17,12 @@ pub fn create_resourse<'buf, 'req>(
         Ok([r_name, r_number]) => {
             let store = &state.store;
             let item = Resource::new(r_name, r_number.parse().unwrap_or_default());
-            let resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+            let mut resource_collection = match store.collection::<Resource>(RESOURCE_COLLECTION) {
+                Ok(resource_collection) => resource_collection,
+                Err(err) => {
+                    return Response::text_plain(StatusCode::InternalServerError, &err.to_string());
+                }
+            };
             match resource_collection.insert_one(item) {
                 Ok(_) => Response::see_other("/resources").unwrap_or_else(|err| {
                     Response::html(StatusCode::InternalServerError, &err.to_string())
@@ -35,7 +40,12 @@ pub fn delete_resourse<'buf, 'req>(
 ) -> Response<'req> {
     if let Ok([r_id]) = request.extract_form(["delete_r_id"]) {
         let store = &state.store;
-        let mut resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+        let mut resource_collection = match store.collection::<Resource>(RESOURCE_COLLECTION) {
+            Ok(resource_collection) => resource_collection,
+            Err(err) => {
+                return Response::text_plain(StatusCode::InternalServerError, &err.to_string());
+            }
+        };
         match r_id.parse::<u32>() {
             Ok(id) => match resource_collection.delete_one(id) {
                 Ok(_) => Response::see_other("/resources").unwrap_or_else(|err| {
@@ -58,7 +68,12 @@ pub fn update_resource<'buf, 'req>(
         request.extract_form(["update_r_id", "update_r_name", "update_r_number"])
     {
         let store = &state.store;
-        let mut resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+        let mut resource_collection = match store.collection::<Resource>(RESOURCE_COLLECTION) {
+            Ok(resource_collection) => resource_collection,
+            Err(err) => {
+                return Response::text_plain(StatusCode::InternalServerError, &err.to_string());
+            }
+        };
         let Ok(r_id) = r_id.parse::<u32>() else {
             return Response::html(StatusCode::BadRequest, "Error parsing id");
         };
@@ -86,7 +101,10 @@ pub fn list_resourse<'buf, 'req>(
     state: &mut State,
 ) -> Response<'req> {
     let store = &state.store;
-    let mut resource_collection = store.collection::<Resource>(RESOURCE_COLLECTION);
+    let mut resource_collection = match store.collection::<Resource>(RESOURCE_COLLECTION) {
+        Ok(resource_collection) => resource_collection,
+        Err(err) => return Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
+    };
     let resources = resource_collection.list();
     let total = resource_collection
         .record_count()

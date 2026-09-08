@@ -1,8 +1,5 @@
 use std::{
-    array::TryFromSliceError,
-    fmt::{self},
-    num::TryFromIntError,
-    str::Utf8Error,
+    array::TryFromSliceError, fmt::{self, write}, num::TryFromIntError, str::Utf8Error,
 };
 
 #[derive(Debug)]
@@ -25,7 +22,8 @@ pub enum StoreError {
     RecordCountMismatch,
     TrailingBytesInPayload,
     InvalidFrameFlag(u8),
-    TruncatedFrame
+    TruncatedFrame,
+    InvalidCollectionName
 }
 
 impl From<std::io::Error> for StoreError {
@@ -113,6 +111,9 @@ impl fmt::Display for StoreError {
             }
             StoreError::TruncatedFrame => {
                 write!(f, "Storage file ends before the frame is complete")
+            }
+            StoreError::InvalidCollectionName => {
+                write!(f, "Invalid collection name")
             }
         }
     }

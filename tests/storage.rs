@@ -8,11 +8,11 @@ use std::{
 
 use life::{
     constant::{
-        COLLECTION_EXTENSION, INDEX_EXTENSION, STORAGE_DEAD_BYTES_OFFSET,
-        STORAGE_HEADER_TOTAL_BYTES, STORAGE_MAGIC, STORAGE_NEXT_ID_OFFSET,
-        STORAGE_PAYLOAD_FLAG_SIZE, STORAGE_PAYLOAD_FRAME_LIVE, STORAGE_PAYLOAD_FRAME_OFF,
-        STORAGE_PAYLOAD_LEN_SIZE, STORAGE_RECORD_COUNT_OFFSET, STORAGE_VERSION,
-        STORAGE_VERSION_OFFSET,
+        COLLECTION_EXTENSION, INDEX_EXTENSION, INDEX_HEADER_TOTAL_BYTES, INDEX_RECORD_LEN,
+        STORAGE_DEAD_BYTES_OFFSET, STORAGE_HEADER_TOTAL_BYTES, STORAGE_MAGIC,
+        STORAGE_NEXT_ID_OFFSET, STORAGE_PAYLOAD_FLAG_SIZE, STORAGE_PAYLOAD_FRAME_LIVE,
+        STORAGE_PAYLOAD_FRAME_OFF, STORAGE_PAYLOAD_LEN_SIZE, STORAGE_RECORD_COUNT_OFFSET,
+        STORAGE_VERSION, STORAGE_VERSION_OFFSET,
     },
     storage::{
         decode::{Decode, Decoder},
@@ -228,14 +228,18 @@ fn concrete_record_round_trips_through_its_manual_codec() {
 fn multiple_records_survive_reopening_the_store() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "resources");
-    let collection = store.collection::<TestRecord>("resources");
+    let mut collection = store
+        .collection::<TestRecord>("resources")
+        .expect("select collection with a valid name");
     collection.insert_one(TestRecord::new("one", 1)).unwrap();
     collection.insert_one(TestRecord::new("two 🦀", 2)).unwrap();
     drop(collection);
     drop(store);
 
     let reopened_store = directory.connect();
-    let mut reopened = reopened_store.collection::<TestRecord>("resources");
+    let mut reopened = reopened_store
+        .collection::<TestRecord>("resources")
+        .expect("select collection with a valid name");
 
     assert_eq!(
         reopened.list().unwrap(),
@@ -259,7 +263,9 @@ fn multiple_records_survive_reopening_the_store() {
 fn uncached_record_count_reads_only_the_record_count_header_field() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "uncached_count");
-    let collection = store.collection::<TestRecord>("uncached_count");
+    let mut collection = store
+        .collection::<TestRecord>("uncached_count")
+        .expect("select collection with a valid name");
     collection.insert_one(TestRecord::new("one", 1)).unwrap();
     collection.insert_one(TestRecord::new("two", 2)).unwrap();
 
@@ -274,7 +280,9 @@ fn invalid_storage_magic_is_rejected() {
     let mut bytes = fs::read(&path).unwrap();
     bytes[0] ^= 0x01;
     fs::write(path, bytes).unwrap();
-    let mut collection = store.collection::<TestRecord>("invalid_magic");
+    let mut collection = store
+        .collection::<TestRecord>("invalid_magic")
+        .expect("select collection with a valid name");
 
     assert!(matches!(
         collection.list(),
@@ -290,7 +298,9 @@ fn unsupported_storage_version_is_rejected() {
     let mut bytes = fs::read(&path).unwrap();
     bytes[STORAGE_VERSION_OFFSET] = STORAGE_VERSION.wrapping_add(1);
     fs::write(path, bytes).unwrap();
-    let mut collection = store.collection::<TestRecord>("unsupported_version");
+    let mut collection = store
+        .collection::<TestRecord>("unsupported_version")
+        .expect("select collection with a valid name");
 
     assert!(matches!(
         collection.list(),
@@ -310,7 +320,9 @@ fn invalid_utf8_inside_a_record_is_rejected() {
     let mut bytes = storage_header(2, 1, 0);
     append_frame(&mut bytes, &payload);
     write_store_bytes(&directory, "invalid_utf8", &bytes);
-    let mut collection = store.collection::<TestRecord>("invalid_utf8");
+    let mut collection = store
+        .collection::<TestRecord>("invalid_utf8")
+        .expect("select collection with a valid name");
 
     assert!(matches!(collection.list(), Err(StoreError::InvalidUtf8(_))));
 }
@@ -324,7 +336,9 @@ fn truncated_record_payload_is_rejected() {
     bytes.extend_from_slice(&12u32.to_be_bytes());
     bytes.extend_from_slice(&[0, 0, 0]);
     write_store_bytes(&directory, "truncated_record", &bytes);
-    let mut collection = store.collection::<TestRecord>("truncated_record");
+    let mut collection = store
+        .collection::<TestRecord>("truncated_record")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -347,7 +361,9 @@ fn field_length_larger_than_its_payload_returns_error_instead_of_panicking() {
     let mut bytes = storage_header(2, 1, 0);
     append_frame(&mut bytes, &payload);
     write_store_bytes(&directory, "truncated_field", &bytes);
-    let mut collection = store.collection::<TestRecord>("truncated_field");
+    let mut collection = store
+        .collection::<TestRecord>("truncated_field")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -360,7 +376,9 @@ fn partial_frame_length_prefix_is_rejected() {
     bytes.extend_from_slice(STORAGE_PAYLOAD_FRAME_LIVE);
     bytes.extend_from_slice(&[0, 0, 0]);
     write_store_bytes(&directory, "partial_prefix", &bytes);
-    let mut collection = store.collection::<TestRecord>("partial_prefix");
+    let mut collection = store
+        .collection::<TestRecord>("partial_prefix")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -374,7 +392,9 @@ fn partial_frame_length_after_declared_records_is_rejected() {
             let mut bytes = storage_header(2, 1, 0);
             append_frame(&mut bytes, &encoded_payload(1, "complete", 1));
             write_store_bytes(&directory, "trailing_partial_prefix", &bytes);
-            let mut collection = store.collection::<TestRecord>("trailing_partial_prefix");
+            let mut collection = store
+                .collection::<TestRecord>("trailing_partial_prefix")
+                .expect("select collection with a valid name");
 
             // EOF between frames is valid, and the live count already matches.
             assert_eq!(collection.list().expect("read complete frame").len(), 1);
@@ -396,7 +416,9 @@ fn record_count_larger_than_available_frames_is_rejected() {
     let mut bytes = storage_header(3, 2, 0);
     append_frame(&mut bytes, &encoded_payload(1, "only", 1));
     write_store_bytes(&directory, "missing_frame", &bytes);
-    let mut collection = store.collection::<TestRecord>("missing_frame");
+    let mut collection = store
+        .collection::<TestRecord>("missing_frame")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -409,7 +431,9 @@ fn frames_beyond_the_declared_record_count_are_rejected() {
     append_frame(&mut bytes, &encoded_payload(1, "declared", 1));
     append_frame(&mut bytes, &encoded_payload(2, "trailing", 2));
     write_store_bytes(&directory, "trailing_frame", &bytes);
-    let mut collection = store.collection::<TestRecord>("trailing_frame");
+    let mut collection = store
+        .collection::<TestRecord>("trailing_frame")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -423,7 +447,9 @@ fn trailing_bytes_inside_a_framed_record_are_rejected() {
     let mut bytes = storage_header(2, 1, 0);
     append_frame(&mut bytes, &payload);
     write_store_bytes(&directory, "trailing_payload", &bytes);
-    let mut collection = store.collection::<TestRecord>("trailing_payload");
+    let mut collection = store
+        .collection::<TestRecord>("trailing_payload")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -436,7 +462,9 @@ fn invalid_frame_flag_is_rejected() {
     bytes.push(0b0000_0010);
     bytes.extend_from_slice(&0u32.to_be_bytes());
     write_store_bytes(&directory, "invalid_frame_flag", &bytes);
-    let mut collection = store.collection::<TestRecord>("invalid_frame_flag");
+    let mut collection = store
+        .collection::<TestRecord>("invalid_frame_flag")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -454,7 +482,9 @@ fn truncated_tombstoned_frame_is_rejected() {
     bytes.extend_from_slice(&declared_payload_len.to_be_bytes());
     bytes.extend_from_slice(&[0, 0, 0]);
     write_store_bytes(&directory, "truncated_tombstone", &bytes);
-    let mut collection = store.collection::<TestRecord>("truncated_tombstone");
+    let mut collection = store
+        .collection::<TestRecord>("truncated_tombstone")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -475,9 +505,11 @@ fn absolute_collection_identifier_is_rejected() {
     let store = directory.connect();
     let outside_collection = directory.root.join("absolute-escape");
 
-    assert!(store
-        .create_collection(outside_collection.to_str().unwrap())
-        .is_err());
+    assert!(
+        store
+            .create_collection(outside_collection.to_str().unwrap())
+            .is_err()
+    );
     assert!(!directory.root.join("absolute-escape.store").exists());
     assert!(!directory.root.join("absolute-escape.idx").exists());
 }
@@ -486,7 +518,9 @@ fn absolute_collection_identifier_is_rejected() {
 fn middle_deletion_tombstones_bytes_and_preserves_other_records() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "delete_middle");
-    let mut collection = store.collection::<TestRecord>("delete_middle");
+    let mut collection = store
+        .collection::<TestRecord>("delete_middle")
+        .expect("select collection with a valid name");
     collection
         .insert_one(TestRecord::new("record-one", 1))
         .unwrap();
@@ -548,7 +582,9 @@ fn middle_deletion_tombstones_bytes_and_preserves_other_records() {
 fn deleting_records_around_an_existing_index_hole_preserves_later_ids() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "delete_holes");
-    let mut collection = store.collection::<TestRecord>("delete_holes");
+    let mut collection = store
+        .collection::<TestRecord>("delete_holes")
+        .expect("select collection with a valid name");
     for number in 1..=4 {
         collection
             .insert_one(TestRecord::new(format!("record-{number}"), number))
@@ -576,7 +612,9 @@ fn deleting_records_around_an_existing_index_hole_preserves_later_ids() {
 fn deleting_id_zero_returns_error_instead_of_panicking() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "delete_zero");
-    let mut collection = store.collection::<TestRecord>("delete_zero");
+    let mut collection = store
+        .collection::<TestRecord>("delete_zero")
+        .expect("select collection with a valid name");
     collection.insert_one(TestRecord::new("record", 1)).unwrap();
 
     assert_operation_returns_error_without_panicking(|| collection.delete_one(0));
@@ -586,7 +624,9 @@ fn deleting_id_zero_returns_error_instead_of_panicking() {
 fn next_id_remains_monotonic_after_delete_and_reopen() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "stable_ids");
-    let mut collection = store.collection::<TestRecord>("stable_ids");
+    let mut collection = store
+        .collection::<TestRecord>("stable_ids")
+        .expect("select collection with a valid name");
     collection.insert_one(TestRecord::new("one", 1)).unwrap();
     collection.insert_one(TestRecord::new("two", 2)).unwrap();
     collection.delete_one(2).unwrap();
@@ -594,7 +634,9 @@ fn next_id_remains_monotonic_after_delete_and_reopen() {
     drop(store);
 
     let reopened_store = directory.connect();
-    let mut reopened = reopened_store.collection::<TestRecord>("stable_ids");
+    let mut reopened = reopened_store
+        .collection::<TestRecord>("stable_ids")
+        .expect("select collection with a valid name");
     reopened.insert_one(TestRecord::new("three", 3)).unwrap();
 
     assert_eq!(
@@ -620,7 +662,9 @@ fn exhausted_next_id_returns_error_instead_of_panicking_or_reusing_zero() {
         .unwrap();
     file.write_all(&u32::MAX.to_be_bytes()).unwrap();
     drop(file);
-    let collection = store.collection::<TestRecord>("id_overflow");
+    let mut collection = store
+        .collection::<TestRecord>("id_overflow")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| {
         collection.insert_one(TestRecord::new("must fail", 1))
@@ -631,7 +675,9 @@ fn exhausted_next_id_returns_error_instead_of_panicking_or_reusing_zero() {
 fn cached_record_count_tracks_completed_deletion() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "cached_count");
-    let mut collection = store.collection::<TestRecord>("cached_count");
+    let mut collection = store
+        .collection::<TestRecord>("cached_count")
+        .expect("select collection with a valid name");
     collection
         .insert_one(TestRecord::new("only record", 1))
         .unwrap();
@@ -650,7 +696,9 @@ fn index_write_failure_is_reported_and_inconsistent_reopen_is_rejected() {
     let index_path = directory.index_path("failed_insert");
     fs::remove_file(&index_path).unwrap();
     fs::create_dir(&index_path).unwrap();
-    let collection = store.collection::<TestRecord>("failed_insert");
+    let mut collection = store
+        .collection::<TestRecord>("failed_insert")
+        .expect("select collection with a valid name");
 
     assert!(
         collection
@@ -662,7 +710,9 @@ fn index_write_failure_is_reported_and_inconsistent_reopen_is_rejected() {
     drop(store);
 
     let reopened_store = directory.connect();
-    let mut reopened = reopened_store.collection::<TestRecord>("failed_insert");
+    let mut reopened = reopened_store
+        .collection::<TestRecord>("failed_insert")
+        .expect("select collection with a valid name");
     assert!(
         reopened.list().is_err(),
         "reopening must reject a store/index pair left inconsistent by a failed mutation"
@@ -673,24 +723,26 @@ fn index_write_failure_is_reported_and_inconsistent_reopen_is_rejected() {
 fn corrupt_index_header_is_rejected_before_mutation() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "corrupt_index");
-    let mut collection = store.collection::<TestRecord>("corrupt_index");
+    let mut collection = store
+        .collection::<TestRecord>("corrupt_index")
+        .expect("select collection with a valid name");
     collection
         .insert_one(TestRecord::new("must remain", 1))
         .unwrap();
+    let original_store_bytes = fs::read(directory.store_path("corrupt_index")).unwrap();
     let index_path = directory.index_path("corrupt_index");
     let mut bytes = fs::read(&index_path).unwrap();
     bytes[0] ^= 0x01;
-    fs::write(index_path, bytes).unwrap();
+    fs::write(&index_path, &bytes).unwrap();
 
     assert_operation_returns_error_without_panicking(|| collection.delete_one(1));
+    // The index remains corrupt, so check preservation without requiring list()
+    // to accept the inconsistent collection.
     assert_eq!(
-        collection.list().unwrap(),
-        vec![TestRecord {
-            id: 1,
-            name: "must remain".into(),
-            number: 1,
-        }]
+        fs::read(directory.store_path("corrupt_index")).unwrap(),
+        original_store_bytes
     );
+    assert_eq!(fs::read(index_path).unwrap(), bytes);
 }
 
 #[test]
@@ -699,7 +751,9 @@ fn interrupted_insert_header_without_frame_is_rejected_on_reopen() {
     let store = create_collection(&directory, "interrupted_insert");
     let bytes = storage_header(2, 1, 0);
     write_store_bytes(&directory, "interrupted_insert", &bytes);
-    let mut collection = store.collection::<TestRecord>("interrupted_insert");
+    let mut collection = store
+        .collection::<TestRecord>("interrupted_insert")
+        .expect("select collection with a valid name");
 
     assert_operation_returns_error_without_panicking(|| collection.list());
 }
@@ -710,7 +764,9 @@ fn large_valid_file_decodes_each_payload_once() {
 
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "linear_decode");
-    let collection = store.collection::<CountingRecord>("linear_decode");
+    let mut collection = store
+        .collection::<CountingRecord>("linear_decode")
+        .expect("select collection with a valid name");
     let mut expected_payload_bytes = 0;
     for number in 0..RECORDS {
         let record = TestRecord::new(format!("record-{number:04}"), number as u32);
@@ -721,7 +777,8 @@ fn large_valid_file_decodes_each_payload_once() {
     DECODED_PAYLOAD_BYTES.store(0, Ordering::Relaxed);
     let mut reopened = directory
         .connect()
-        .collection::<CountingRecord>("linear_decode");
+        .collection::<CountingRecord>("linear_decode")
+        .expect("select collection with a valid name");
 
     assert_eq!(reopened.list().unwrap().len(), RECORDS);
     assert_eq!(DECODE_CALLS.load(Ordering::Relaxed), RECORDS);
@@ -757,7 +814,9 @@ fn storage_header_fields_use_the_documented_offsets() {
 fn update_preserves_id_and_every_unaffected_record() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "update_record");
-    let mut collection = store.collection::<TestRecord>("update_record");
+    let mut collection = store
+        .collection::<TestRecord>("update_record")
+        .expect("select collection with a valid name");
     for number in 1..=3 {
         collection
             .insert_one(TestRecord::new(format!("record-{number}"), number))
@@ -794,7 +853,9 @@ fn update_preserves_id_and_every_unaffected_record() {
     drop(collection);
     drop(store);
     let reopened_store = directory.connect();
-    let mut reopened = reopened_store.collection::<TestRecord>("update_record");
+    let mut reopened = reopened_store
+        .collection::<TestRecord>("update_record")
+        .expect("select collection with a valid name");
     let mut reopened_records = reopened.list().unwrap();
     reopened_records.sort_by_key(|record| record.id);
     assert_eq!(reopened_records, records);
@@ -804,7 +865,9 @@ fn update_preserves_id_and_every_unaffected_record() {
 fn update_adds_the_replaced_frame_to_dead_bytes() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "update_dead_bytes");
-    let mut collection = store.collection::<TestRecord>("update_dead_bytes");
+    let mut collection = store
+        .collection::<TestRecord>("update_dead_bytes")
+        .expect("select collection with a valid name");
     collection
         .insert_one(TestRecord::new("original-record", 1))
         .unwrap();
@@ -825,4 +888,316 @@ fn update_adds_the_replaced_frame_to_dead_bytes() {
         ),
         replaced_frame_len
     );
+}
+
+fn assert_collection_lookup_cannot_escape_storage_root(absolute: bool) {
+    let directory = TestDirectory::new();
+    // Both roots are inside the isolated temporary directory. The outer store
+    // supplies an existing target that an invalid lookup could otherwise reach.
+    let outside = Store::connect(directory.root.to_str().unwrap()).unwrap();
+    outside.create_collection("escaped").unwrap();
+    let mut target = outside
+        .collection::<TestRecord>("escaped")
+        .expect("select collection with a valid name");
+    target.insert_one(TestRecord::new("outside", 1)).unwrap();
+    let store_path = directory.root.join("escaped.store");
+    let index_path = directory.root.join("escaped.idx");
+    let original_store_bytes = fs::read(&store_path).unwrap();
+    let original_index_bytes = fs::read(&index_path).unwrap();
+    let name = if absolute {
+        directory.root.join("escaped").to_str().unwrap().to_owned()
+    } else {
+        "../escaped".to_owned()
+    };
+    let inside = directory.connect();
+
+    // Reject the name during selection, before a handle can expose any reads
+    // or mutations of the outside collection.
+    let outcome = panic::catch_unwind(AssertUnwindSafe(|| inside.collection::<TestRecord>(&name)));
+    assert!(
+        matches!(outcome, Ok(Err(StoreError::InvalidCollectionName))),
+        "an escaping collection name must return InvalidCollectionName without panicking"
+    );
+    assert_eq!(fs::read(store_path).unwrap(), original_store_bytes);
+    assert_eq!(fs::read(index_path).unwrap(), original_index_bytes);
+}
+
+#[test]
+fn traversal_collection_lookup_cannot_read_or_mutate_outside_storage_root() {
+    assert_collection_lookup_cannot_escape_storage_root(false);
+}
+
+#[test]
+fn absolute_collection_lookup_cannot_read_or_mutate_outside_storage_root() {
+    assert_collection_lookup_cannot_escape_storage_root(true);
+}
+
+#[test]
+fn cached_record_count_tracks_mutations_through_another_handle() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "shared_count");
+    let mut first = store
+        .collection::<TestRecord>("shared_count")
+        .expect("select collection with a valid name");
+    assert!(first.list().unwrap().is_empty());
+    let mut second = store
+        .collection::<TestRecord>("shared_count")
+        .expect("select collection with a valid name");
+
+    second.insert_one(TestRecord::new("one", 1)).unwrap();
+    assert_eq!(
+        first.record_count().unwrap(),
+        1,
+        "a completed insertion through another handle must be reflected in the count"
+    );
+
+    second.delete_one(1).unwrap();
+    assert_eq!(
+        first.record_count().unwrap(),
+        0,
+        "a completed deletion through another handle must be reflected in the count"
+    );
+}
+
+#[test]
+fn deletion_after_insertion_through_another_handle_does_not_panic() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "shared_delete");
+    let mut first = store
+        .collection::<TestRecord>("shared_delete")
+        .expect("select collection with a valid name");
+    assert!(first.list().unwrap().is_empty());
+    let mut second = store
+        .collection::<TestRecord>("shared_delete")
+        .expect("select collection with a valid name");
+    second.insert_one(TestRecord::new("one", 1)).unwrap();
+    let original_bytes = fs::read(directory.store_path("shared_delete")).unwrap();
+
+    // These operations are sequential. An existing record remains deletable
+    // even when this handle last observed the collection while it was empty.
+    let outcome = panic::catch_unwind(AssertUnwindSafe(|| first.delete_one(1)));
+    assert!(
+        outcome.is_ok(),
+        "a stale cached count must not cause a panic"
+    );
+    outcome.unwrap().expect("delete the existing record");
+    assert_eq!(first.record_count().unwrap(), 0);
+
+    let bytes = fs::read(directory.store_path("shared_delete")).unwrap();
+    assert_eq!(
+        u64::from_be_bytes(
+            bytes[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+                .try_into()
+                .unwrap()
+        ),
+        (original_bytes.len() - STORAGE_HEADER_TOTAL_BYTES) as u64,
+        "the successful deletion must finish updating dead_bytes"
+    );
+    let mut reopened = directory
+        .connect()
+        .collection::<TestRecord>("shared_delete")
+        .expect("select collection with a valid name");
+    assert!(reopened.list().unwrap().is_empty());
+    assert_eq!(reopened.record_count().unwrap(), 0);
+}
+
+#[test]
+fn interrupted_delete_after_clearing_index_is_rejected_on_reopen() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "interrupted_delete_index");
+    let mut collection = store
+        .collection::<TestRecord>("interrupted_delete_index")
+        .expect("select collection with a valid name");
+    collection
+        .insert_one(TestRecord::new("still live", 1))
+        .unwrap();
+    assert_eq!(collection.list().unwrap().len(), 1);
+    drop(collection);
+    drop(store);
+
+    // Simulate interruption after clearing ID 1's index offset, before its
+    // live frame or collection metadata has been changed.
+    let index_path = directory.index_path("interrupted_delete_index");
+    let mut bytes = fs::read(&index_path).unwrap();
+    bytes[INDEX_HEADER_TOTAL_BYTES + 4..INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN]
+        .copy_from_slice(&0u64.to_be_bytes());
+    fs::write(index_path, bytes).unwrap();
+
+    let mut reopened = directory
+        .connect()
+        .collection::<TestRecord>("interrupted_delete_index")
+        .expect("select collection with a valid name");
+    assert_operation_returns_error_without_panicking(|| reopened.list());
+}
+
+#[test]
+fn index_offset_for_another_record_is_rejected_before_deletion() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "wrong_index_offset");
+    let mut collection = store
+        .collection::<TestRecord>("wrong_index_offset")
+        .expect("select collection with a valid name");
+    collection.insert_one(TestRecord::new("one", 1)).unwrap();
+    collection.insert_one(TestRecord::new("two", 2)).unwrap();
+    let original_store_bytes = fs::read(directory.store_path("wrong_index_offset")).unwrap();
+    let index_path = directory.index_path("wrong_index_offset");
+    let mut bytes = fs::read(&index_path).unwrap();
+    let second_entry = INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN;
+    let second_offset: [u8; 8] = bytes[second_entry + 4..second_entry + INDEX_RECORD_LEN]
+        .try_into()
+        .unwrap();
+    // Keep the entry's ID as 1, but redirect it to ID 2's valid live frame.
+    bytes[INDEX_HEADER_TOTAL_BYTES + 4..INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN]
+        .copy_from_slice(&second_offset);
+    fs::write(&index_path, &bytes).unwrap();
+
+    assert_operation_returns_error_without_panicking(|| collection.delete_one(1));
+    assert_eq!(
+        fs::read(directory.store_path("wrong_index_offset")).unwrap(),
+        original_store_bytes,
+        "rejecting a bad offset must preserve both records"
+    );
+    assert_eq!(fs::read(index_path).unwrap(), bytes);
+}
+
+fn collection_with_regressed_next_id(directory: &TestDirectory, name: &str) -> Store {
+    let store = create_collection(directory, name);
+    let mut collection = store
+        .collection::<TestRecord>(name)
+        .expect("select collection with a valid name");
+    collection
+        .insert_one(TestRecord::new("original", 1))
+        .unwrap();
+    assert_eq!(collection.list().unwrap()[0].id, 1);
+    drop(collection);
+
+    let path = directory.store_path(name);
+    let mut bytes = fs::read(&path).unwrap();
+    // Only next_id is corrupted; the frame, live count, and index still agree.
+    bytes[STORAGE_NEXT_ID_OFFSET..STORAGE_RECORD_COUNT_OFFSET].copy_from_slice(&1u32.to_be_bytes());
+    fs::write(path, bytes).unwrap();
+    store
+}
+
+#[test]
+fn regressed_next_id_is_rejected_on_reopen() {
+    let directory = TestDirectory::new();
+    let store = collection_with_regressed_next_id(&directory, "regressed_next_id");
+    drop(store);
+    let mut reopened = directory
+        .connect()
+        .collection::<TestRecord>("regressed_next_id")
+        .expect("select collection with a valid name");
+
+    assert_operation_returns_error_without_panicking(|| reopened.list());
+}
+
+#[test]
+fn insertion_rejects_regressed_next_id_before_reusing_an_id() {
+    let directory = TestDirectory::new();
+    let store = collection_with_regressed_next_id(&directory, "duplicate_id");
+    drop(store);
+    let store_path = directory.store_path("duplicate_id");
+    let index_path = directory.index_path("duplicate_id");
+    let original_store_bytes = fs::read(&store_path).unwrap();
+    let original_index_bytes = fs::read(&index_path).unwrap();
+    let mut reopened = directory
+        .connect()
+        .collection::<TestRecord>("duplicate_id")
+        .expect("select collection with a valid name");
+
+    // Insertion must be safe even when the caller has not called list() first.
+    assert_operation_returns_error_without_panicking(|| {
+        reopened.insert_one(TestRecord::new("must not reuse ID 1", 2))
+    });
+    assert_eq!(fs::read(store_path).unwrap(), original_store_bytes);
+    assert_eq!(fs::read(index_path).unwrap(), original_index_bytes);
+}
+
+#[test]
+fn creating_collection_with_missing_index_does_not_silently_reset_it() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "missing_index");
+    let mut collection = store
+        .collection::<TestRecord>("missing_index")
+        .expect("select collection with a valid name");
+    collection
+        .insert_one(TestRecord::new("original", 1))
+        .unwrap();
+    drop(collection);
+    let store_path = directory.store_path("missing_index");
+    let original_store_bytes = fs::read(&store_path).unwrap();
+    fs::remove_file(directory.index_path("missing_index")).unwrap();
+
+    let result = store.create_collection("missing_index");
+    assert_eq!(fs::read(&store_path).unwrap(), original_store_bytes);
+    // Explicit rejection is sufficient. If initialization succeeds, the
+    // original IDs and subsequent mutations must all remain usable.
+    if result.is_err() {
+        return;
+    }
+    drop(store);
+    let mut reopened = directory
+        .connect()
+        .collection::<TestRecord>("missing_index")
+        .expect("select collection with a valid name");
+    assert_eq!(
+        reopened
+            .list()
+            .expect("read the successfully initialized collection"),
+        vec![TestRecord {
+            id: 1,
+            name: "original".into(),
+            number: 1,
+        }]
+    );
+    reopened.insert_one(TestRecord::new("second", 2)).unwrap();
+    assert_eq!(
+        reopened
+            .list()
+            .unwrap()
+            .into_iter()
+            .map(|record| record.id)
+            .collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+    reopened
+        .delete_one(2)
+        .expect("the new ID must have a usable index entry");
+    reopened
+        .delete_one(1)
+        .expect("the original ID must retain a usable index entry");
+    let mut reopened = directory
+        .connect()
+        .collection::<TestRecord>("missing_index")
+        .expect("select collection with a valid name");
+    assert!(reopened.list().unwrap().is_empty());
+}
+
+#[test]
+fn inconsistent_dead_bytes_is_rejected_on_reopen() {
+    let directory = TestDirectory::new();
+    let store = create_collection(&directory, "inconsistent_dead_bytes");
+    let mut collection = store
+        .collection::<TestRecord>("inconsistent_dead_bytes")
+        .expect("select collection with a valid name");
+    collection.insert_one(TestRecord::new("one", 1)).unwrap();
+    collection.delete_one(1).unwrap();
+    assert!(collection.list().unwrap().is_empty());
+    drop(collection);
+    drop(store);
+
+    let path = directory.store_path("inconsistent_dead_bytes");
+    let mut bytes = fs::read(&path).unwrap();
+    // This is also the state left if deletion updates the index, frame state,
+    // and live count, but is interrupted before writing dead_bytes.
+    bytes[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+        .copy_from_slice(&0u64.to_be_bytes());
+    fs::write(path, bytes).unwrap();
+
+    let mut reopened = directory
+        .connect()
+        .collection::<TestRecord>("inconsistent_dead_bytes")
+        .expect("select collection with a valid name");
+    assert_operation_returns_error_without_panicking(|| reopened.list());
 }

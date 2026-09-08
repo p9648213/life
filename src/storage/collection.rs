@@ -23,7 +23,6 @@ use crate::{
 pub struct Colection<T> {
     store_path: PathBuf,
     index_path: PathBuf,
-    record_count: Option<u32>,
     _collection_type: PhantomData<T>,
 }
 
@@ -32,7 +31,6 @@ impl<T> Colection<T> {
         Self {
             store_path,
             index_path,
-            record_count: None,
             _collection_type: PhantomData,
         }
     }
@@ -96,7 +94,7 @@ impl<T> Colection<T> {
         Ok(offset)
     }
 
-    pub fn insert_one(&self, item: T) -> Result<(), StoreError>
+    pub fn insert_one(&mut self, item: T) -> Result<(), StoreError>
     where
         T: Encode,
     {
@@ -151,9 +149,6 @@ impl<T> Colection<T> {
         let record_count = u32::from_be_bytes(record_count_buf);
         f.seek(SeekFrom::Current(-4))?;
         f.write_all(&(record_count - 1).to_be_bytes())?;
-        if let Some(record_count) = self.record_count {
-            self.record_count = Some(record_count - 1);
-        }
         let mut dead_bytes_buf = [0u8; 8];
         f.read_exact(&mut dead_bytes_buf)?;
         let total_dead_bytes = u64::from_be_bytes(dead_bytes_buf);
@@ -181,6 +176,16 @@ impl<T> Colection<T> {
         f.write_all(&bytes)?;
         f.seek(SeekFrom::Start(old_offset))?;
         f.write_all(STORAGE_PAYLOAD_FRAME_OFF)?;
+        let mut payload_size_buf = [0u8; 4];
+        f.read_exact(&mut payload_size_buf)?;
+        let payload_size = u32::from_be_bytes(payload_size_buf);
+        let total_record_bytes = 5 + payload_size;
+        f.seek(SeekFrom::Start(STORAGE_DEAD_BYTES_OFFSET as u64))?;
+        let mut dead_bytes_buf = [0u8; 8];
+        f.read_exact(&mut dead_bytes_buf)?;
+        let dead_bytes = u64::from_be_bytes(dead_bytes_buf);
+        f.seek(SeekFrom::Current(-8))?;
+        f.write_all(&(total_record_bytes as u64 + dead_bytes).to_be_bytes())?;
         Ok(())
     }
 
@@ -198,7 +203,6 @@ impl<T> Colection<T> {
         let record_count = u32::from_be_bytes(
             header_buf[STORAGE_RECORD_COUNT_OFFSET..STORAGE_DEAD_BYTES_OFFSET].try_into()?,
         );
-        self.record_count = Some(record_count);
         if magic_bytes != STORAGE_MAGIC {
             return Err(StoreError::InvalidStorageFormat);
         }
@@ -255,16 +259,12 @@ impl<T> Colection<T> {
     }
 
     pub fn record_count(&self) -> Result<u32, StoreError> {
-        if let Some(record_count) = self.record_count {
-            Ok(record_count)
-        } else {
-            let mut f = fs::OpenOptions::new().read(true).open(&self.store_path)?;
-            let mut header_buf = [0u8; STORAGE_HEADER_TOTAL_BYTES];
-            f.read_exact(&mut header_buf)?;
-            let record_count = u32::from_be_bytes(
-                header_buf[STORAGE_RECORD_COUNT_OFFSET..STORAGE_HEADER_TOTAL_BYTES].try_into()?,
-            );
-            Ok(record_count)
-        }
+        let mut f = fs::OpenOptions::new().read(true).open(&self.store_path)?;
+        let mut header_buf = [0u8; STORAGE_HEADER_TOTAL_BYTES];
+        f.read_exact(&mut header_buf)?;
+        let record_count = u32::from_be_bytes(
+            header_buf[STORAGE_RECORD_COUNT_OFFSET..STORAGE_DEAD_BYTES_OFFSET].try_into()?,
+        );
+        Ok(record_count)
     }
 }

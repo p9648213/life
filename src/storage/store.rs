@@ -32,11 +32,14 @@ impl Store {
         Ok(Self { path: storage_dir })
     }
 
-    pub fn collection<T>(&self, name: &str) -> Colection<T> {
-        Colection::new(
+    pub fn collection<T>(&self, name: &str) -> Result<Colection<T>, StoreError> {
+        if !Self::is_valid_collection_name(name) {
+            return Err(StoreError::InvalidCollectionName);
+        }
+        Ok(Colection::new(
             self.path.join(format!("{}.{}", name, COLLECTION_EXTENSION)),
             self.path.join(format!("{}.{}", name, INDEX_EXTENSION)),
-        )
+        ))
     }
 
     pub fn create_collection(&self, name: &str) -> std::io::Result<()> {
@@ -47,20 +50,22 @@ impl Store {
             ));
         }
         let collection_path = self.path.join(format!("{}.{}", name, COLLECTION_EXTENSION));
-        if !collection_path.is_file() {
+        let index_path = self.path.join(format!("{}.{}", name, INDEX_EXTENSION));
+        if !collection_path.is_file() && !index_path.is_file() {
             let mut file = fs::File::create(collection_path)?;
             file.write_all(STORAGE_MAGIC.as_bytes())?;
             file.write_all(&[STORAGE_VERSION])?;
             file.write_all(&STORAGE_NEXT_ID.to_be_bytes())?;
             file.write_all(&STORAGE_RECORD_COUNT.to_be_bytes())?;
             file.write_all(&STORAGE_DEAD_BYTES.to_be_bytes())?;
-        }
-        let index_path = self.path.join(format!("{}.{}", name, INDEX_EXTENSION));
-        if !index_path.is_file() {
             let mut file = fs::File::create(index_path)?;
             file.write_all(INDEX_MAGIC.as_bytes())?;
             file.write_all(&[INDEX_VERSION])?;
             file.write_all(&INDEX_RECORD_COUNT.to_be_bytes())?;
+        } else if !collection_path.is_file() && index_path.is_file()
+            || collection_path.is_file() && !index_path.is_file()
+        {
+            return Err(Error::new(ErrorKind::NotFound, "collection is corrupted: missing file"));
         }
         Ok(())
     }
