@@ -1,5 +1,8 @@
 use std::{
-    array::TryFromSliceError, fmt::{self, write}, num::TryFromIntError, str::Utf8Error,
+    array::TryFromSliceError,
+    fmt::{self},
+    num::TryFromIntError,
+    str::Utf8Error,
 };
 
 #[derive(Debug)]
@@ -20,10 +23,13 @@ pub enum StoreError {
     OverflowId,
     UnexpectedEndOfPayload,
     RecordCountMismatch,
+    DeadBytesMismatch,
     TrailingBytesInPayload,
     InvalidFrameFlag(u8),
     TruncatedFrame,
-    InvalidCollectionName
+    InvalidCollectionName,
+    IndexRecordIdMismatch { expected_id: u32, actual_id: u32 },
+    InvalidNextId(u32),
 }
 
 impl From<std::io::Error> for StoreError {
@@ -103,6 +109,21 @@ impl fmt::Display for StoreError {
             StoreError::RecordCountMismatch => {
                 write!(f, "Record count mismatch")
             }
+            StoreError::DeadBytesMismatch => {
+                write!(
+                    f,
+                    "Storage dead_bytes does not match the total size of deleted frames"
+                )
+            }
+            StoreError::IndexRecordIdMismatch {
+                expected_id,
+                actual_id,
+            } => {
+                write!(
+                    f,
+                    "index points to record ID {actual_id}, expected record ID {expected_id}"
+                )
+            }
             StoreError::TrailingBytesInPayload => {
                 write!(f, "Trailing bytes in payload")
             }
@@ -114,6 +135,9 @@ impl fmt::Display for StoreError {
             }
             StoreError::InvalidCollectionName => {
                 write!(f, "Invalid collection name")
+            }
+            Self::InvalidNextId(id) => {
+                write!(f, "Invalid next_id {id}: ID has already been issued")
             }
         }
     }

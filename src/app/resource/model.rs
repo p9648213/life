@@ -2,6 +2,7 @@ use crate::storage::{
     decode::{Decode, Decoder},
     encode::{Encode, Encoder},
     error::StoreError,
+    util::HasId,
 };
 
 #[derive(Debug)]
@@ -27,6 +28,12 @@ impl Decode for Resource {
         let name = decoder.read_str()?.to_owned();
         let number = decoder.read_u32()?;
         Ok(Self { id, name, number })
+    }
+}
+
+impl HasId for Resource {
+    fn id(&self) -> u32 {
+        self.id
     }
 }
 

@@ -19,6 +19,7 @@ use life::{
         encode::{Encode, Encoder},
         error::StoreError,
         store::Store,
+        util::HasId,
     },
 };
 
@@ -106,7 +107,19 @@ impl Decode for TestRecord {
     }
 }
 
+impl HasId for TestRecord {
+    fn id(&self) -> u32 {
+        self.id
+    }
+}
+
 struct CountingRecord(TestRecord);
+
+impl HasId for CountingRecord {
+    fn id(&self) -> u32 {
+        self.0.id()
+    }
+}
 
 impl Encode for CountingRecord {
     fn encode(&self, id: u32) -> Result<Vec<u8>, StoreError> {
@@ -389,12 +402,13 @@ fn partial_frame_length_after_declared_records_is_rejected() {
         for prefix_len in 0..STORAGE_PAYLOAD_LEN_SIZE {
             let directory = TestDirectory::new();
             let store = create_collection(&directory, "trailing_partial_prefix");
-            let mut bytes = storage_header(2, 1, 0);
-            append_frame(&mut bytes, &encoded_payload(1, "complete", 1));
-            write_store_bytes(&directory, "trailing_partial_prefix", &bytes);
             let mut collection = store
                 .collection::<TestRecord>("trailing_partial_prefix")
                 .expect("select collection with a valid name");
+            collection
+                .insert_one(TestRecord::new("complete", 1))
+                .expect("insert complete record with a matching index entry");
+            let mut bytes = fs::read(directory.store_path("trailing_partial_prefix")).unwrap();
 
             // EOF between frames is valid, and the live count already matches.
             assert_eq!(collection.list().expect("read complete frame").len(), 1);
@@ -404,7 +418,7 @@ fn partial_frame_length_after_declared_records_is_rejected() {
             write_store_bytes(&directory, "trailing_partial_prefix", &bytes);
 
             // A flag starts another frame, which requires all four length bytes.
-            assert_operation_returns_error_without_panicking(|| collection.list());
+            assert!(matches!(collection.list(), Err(StoreError::TruncatedFrame)));
         }
     }
 }
