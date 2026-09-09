@@ -126,9 +126,11 @@ impl<T> Colection<T> {
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
         let id = u32::from_be_bytes(next_id_buf);
-        if self.find_id_offset(id).is_ok() {
-            return Err(StoreError::InvalidNextId(id));
-        };
+        match self.find_id_offset(id) {
+            Ok(_) => return Err(StoreError::InvalidNextId(id)),
+            Err(StoreError::StorageIndexIdNotFound) => {}
+            Err(error) => return Err(error),
+        }
         let next_id = if let Some(value) = id.checked_add(1) {
             value
         } else {
