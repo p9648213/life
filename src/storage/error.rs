@@ -14,11 +14,13 @@ pub enum StoreError {
     TryFromSliceError(TryFromSliceError),
     TryFromIntError(TryFromIntError),
     InvalidStorageFormat,
-    UnsupportVersion,
+    UnsupportStorageVersion,
+    UnsupportIndexVersion,
     StorageIndexIdNotFound,
     StorageIndexDeleted,
     IdNotMatch,
     OverflowPayloadSize,
+    OverflowDeadbytesSize,
     InvalidStorageIndexFormat,
     OverflowId,
     UnexpectedEndOfPayload,
@@ -28,8 +30,17 @@ pub enum StoreError {
     InvalidFrameFlag(u8),
     TruncatedFrame,
     InvalidCollectionName,
-    IndexRecordIdMismatch { expected_id: u32, actual_id: u32 },
+    IndexRecordIdMismatch {
+        expected_id: u32,
+        actual_id: u32,
+    },
+    IndexRecordOffsetMismatch {
+        expected_offset: u64,
+        actual_offset: u64,
+    },
     InvalidNextId(u32),
+    OverflowIndexRecordCount,
+    OverflowStoreRecordCount,
 }
 
 impl From<std::io::Error> for StoreError {
@@ -82,8 +93,11 @@ impl fmt::Display for StoreError {
             StoreError::InvalidStorageFormat => {
                 write!(f, "Invalid storage format")
             }
-            StoreError::UnsupportVersion => {
-                write!(f, "Unsupport version")
+            StoreError::UnsupportStorageVersion => {
+                write!(f, "Unsupport storage version")
+            }
+            StoreError::UnsupportIndexVersion => {
+                write!(f, "Unsupport index version")
             }
             StoreError::StorageIndexIdNotFound => {
                 write!(f, "Storage index id not found")
@@ -93,6 +107,9 @@ impl fmt::Display for StoreError {
             }
             StoreError::OverflowPayloadSize => {
                 write!(f, "Overflow Payload Size")
+            }
+            StoreError::OverflowDeadbytesSize => {
+                write!(f, "Overflow Deadbytes Size")
             }
             StoreError::StorageIndexDeleted => {
                 write!(f, "Storage index deleted")
@@ -124,6 +141,15 @@ impl fmt::Display for StoreError {
                     "index points to record ID {actual_id}, expected record ID {expected_id}"
                 )
             }
+            StoreError::IndexRecordOffsetMismatch {
+                expected_offset,
+                actual_offset,
+            } => {
+                write!(
+                    f,
+                    "index points to offset{actual_offset}, expected offset {expected_offset}"
+                )
+            }
             StoreError::TrailingBytesInPayload => {
                 write!(f, "Trailing bytes in payload")
             }
@@ -136,8 +162,14 @@ impl fmt::Display for StoreError {
             StoreError::InvalidCollectionName => {
                 write!(f, "Invalid collection name")
             }
-            Self::InvalidNextId(id) => {
+            StoreError::InvalidNextId(id) => {
                 write!(f, "Invalid next_id {id}: ID has already been issued")
+            }
+            StoreError::OverflowIndexRecordCount => {
+                write!(f, "Overflow index record count")
+            }
+            StoreError::OverflowStoreRecordCount => {
+                write!(f, "Overflow store record count")
             }
         }
     }

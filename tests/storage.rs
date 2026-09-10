@@ -1,6 +1,6 @@
 use std::{
     fs::{self, OpenOptions},
-    io::{Seek, SeekFrom, Write},
+    io::{Read, Seek, SeekFrom, Write},
     panic::{self, AssertUnwindSafe},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -16,6 +16,7 @@ use life::{
         STORAGE_VERSION_OFFSET,
     },
     storage::{
+        collection::Colection,
         decode::{Decode, Decoder},
         encode::{Encode, Encoder},
         error::StoreError,
@@ -320,7 +321,7 @@ fn unsupported_storage_version_is_rejected() {
 
     assert!(matches!(
         collection.list(),
-        Err(StoreError::UnsupportVersion)
+        Err(StoreError::UnsupportStorageVersion)
     ));
 }
 
@@ -328,13 +329,18 @@ fn unsupported_storage_version_is_rejected() {
 fn invalid_utf8_inside_a_record_is_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "invalid_utf8");
-    let mut payload = Vec::new();
-    payload.extend_from_slice(&1u32.to_be_bytes());
-    payload.extend_from_slice(&1u32.to_be_bytes());
-    payload.push(0xff);
-    payload.extend_from_slice(&7u32.to_be_bytes());
-    let mut bytes = storage_header(2, 1, 0);
-    append_frame(&mut bytes, &payload);
+    let mut collection = store
+        .collection::<TestRecord>("invalid_utf8")
+        .expect("select collection with a valid name");
+    collection.insert_one(TestRecord::new("a", 7)).unwrap();
+    drop(collection);
+
+    let mut bytes = fs::read(directory.store_path("invalid_utf8")).unwrap();
+    let payload_start =
+        STORAGE_HEADER_TOTAL_BYTES + STORAGE_PAYLOAD_FLAG_SIZE + STORAGE_PAYLOAD_LEN_SIZE;
+    let name_offset = payload_start + 4 + 4; // Skip the ID and name length.
+    assert_eq!(bytes[name_offset], b'a');
+    bytes[name_offset] = 0xff;
     write_store_bytes(&directory, "invalid_utf8", &bytes);
     let mut collection = store
         .collection::<TestRecord>("invalid_utf8")
@@ -748,7 +754,10 @@ fn opening_collection_with_directory_instead_of_index_is_rejected() {
         reopened_store.collection::<TestRecord>("failed_insert")
     });
     assert_eq!(fs::read(store_path).unwrap(), original_store_bytes);
-    assert!(index_path.is_dir(), "opening must not replace the invalid index");
+    assert!(
+        index_path.is_dir(),
+        "opening must not replace the invalid index"
+    );
 }
 
 #[test]
@@ -1358,12 +1367,10 @@ fn regressed_next_id_after_deletion_is_rejected_on_reopen() {
     let directory = TestDirectory::new();
     let store = collection_with_regressed_next_id_after_deletion(&directory, "deleted_next_id");
     drop(store);
-    let mut reopened = directory
-        .connect()
-        .collection::<TestRecord>("deleted_next_id")
-        .expect("select collection with a valid name");
 
-    assert_operation_returns_error_without_panicking(|| reopened.list());
+    assert_collection_rejects_without_changes(&directory, "deleted_next_id", |collection| {
+        collection.list()
+    });
 }
 
 #[test]
@@ -1510,4 +1517,381 @@ fn large_index_id_returns_error_without_panicking_or_mutating_files() {
     assert_operation_returns_error_without_panicking(|| collection.delete_one(u32::MAX));
     assert_eq!(fs::read(store_path).unwrap(), original_store_bytes);
     assert_eq!(fs::read(index_path).unwrap(), bytes);
+}
+
+// These fixtures keep both files valid until the test introduces one specific
+// inconsistency. Opening may reject it early; otherwise the operation must do so.
+#[track_caller]
+fn assert_collection_rejects_without_changes<R>(
+    directory: &TestDirectory,
+    name: &str,
+    operation: impl FnOnce(&mut Colection<TestRecord>) -> Result<R, StoreError>,
+) {
+    let store_path = directory.store_path(name);
+    let index_path = directory.index_path(name);
+    let store_bytes = fs::read(&store_path).unwrap();
+    let index_bytes = fs::read(&index_path).unwrap();
+
+    assert_operation_returns_error_without_panicking(|| {
+        let mut collection = directory.connect().collection::<TestRecord>(name)?;
+        // Do not call list() first: mutations must validate their own input.
+        operation(&mut collection)
+    });
+
+    assert_eq!(fs::read(store_path).unwrap(), store_bytes, ".store changed");
+    assert_eq!(fs::read(index_path).unwrap(), index_bytes, ".idx changed");
+}
+
+fn assert_single_record_mutation_rejects_corruption(
+    corrupt: impl FnOnce(&mut Vec<u8>, &mut Vec<u8>),
+    operation: impl FnOnce(&mut Colection<TestRecord>) -> Result<(), StoreError>,
+) {
+    let directory = TestDirectory::new();
+    let name = "corrupt_mutation";
+    let store = create_collection(&directory, name);
+    let mut collection = store.collection::<TestRecord>(name).unwrap();
+    collection
+        .insert_one(TestRecord::new("original", 1))
+        .unwrap();
+    assert_eq!(collection.list().unwrap().len(), 1);
+    drop(collection);
+    drop(store);
+
+    let mut store_bytes = fs::read(directory.store_path(name)).unwrap();
+    let mut index_bytes = fs::read(directory.index_path(name)).unwrap();
+    corrupt(&mut store_bytes, &mut index_bytes);
+    fs::write(directory.store_path(name), store_bytes).unwrap();
+    fs::write(directory.index_path(name), index_bytes).unwrap();
+
+    assert_collection_rejects_without_changes(&directory, name, operation);
+}
+
+fn assert_empty_collection_rejects_corrupt_index(corrupt: impl FnOnce(&mut Vec<u8>)) {
+    let directory = TestDirectory::new();
+    let name = "empty_corrupt_index";
+    let store = create_collection(&directory, name);
+    let mut collection = store.collection::<TestRecord>(name).unwrap();
+    assert!(collection.list().unwrap().is_empty());
+    drop(collection);
+    drop(store);
+
+    let path = directory.index_path(name);
+    let mut bytes = fs::read(&path).unwrap();
+    corrupt(&mut bytes);
+    fs::write(path, bytes).unwrap();
+
+    assert_collection_rejects_without_changes(&directory, name, |collection| collection.list());
+}
+
+#[test]
+fn empty_collection_with_corrupt_index_magic_is_rejected_on_reopen() {
+    assert_empty_collection_rejects_corrupt_index(|bytes| bytes[0] ^= 1);
+}
+
+#[test]
+fn empty_collection_with_unsupported_index_version_is_rejected_on_reopen() {
+    assert_empty_collection_rejects_corrupt_index(|bytes| bytes[INDEX_VERSION_OFFSET] = u8::MAX);
+}
+
+#[test]
+fn empty_collection_with_truncated_index_header_is_rejected_on_reopen() {
+    // Cover every incomplete header, including a missing/partial count field
+    // after otherwise valid magic and version bytes.
+    for length in 0..INDEX_HEADER_TOTAL_BYTES {
+        assert_empty_collection_rejects_corrupt_index(|bytes| bytes.truncate(length));
+    }
+}
+
+#[test]
+fn empty_collection_with_index_count_without_entries_is_rejected_on_reopen() {
+    assert_empty_collection_rejects_corrupt_index(|bytes| {
+        bytes[INDEX_RECORD_COUNT_OFFSET..INDEX_HEADER_TOTAL_BYTES]
+            .copy_from_slice(&1u32.to_be_bytes());
+    });
+}
+
+fn assert_index_only_insertion_is_rejected(existing_records: u32) {
+    let directory = TestDirectory::new();
+    let name = "index_only_insert";
+    let store = create_collection(&directory, name);
+    let mut collection = store.collection::<TestRecord>(name).unwrap();
+    for number in 0..existing_records {
+        collection
+            .insert_one(TestRecord::new("existing", number))
+            .unwrap();
+    }
+    assert_eq!(collection.list().unwrap().len(), existing_records as usize);
+    drop(collection);
+    drop(store);
+
+    let path = directory.index_path(name);
+    let mut bytes = fs::read(&path).unwrap();
+    let id = existing_records + 1;
+    let frame_offset = fs::metadata(directory.store_path(name)).unwrap().len();
+    // Stop immediately after insert_index(): the index count/slot are written,
+    // but the store header and the future frame at EOF have not been written.
+    bytes[INDEX_RECORD_COUNT_OFFSET..INDEX_HEADER_TOTAL_BYTES].copy_from_slice(&id.to_be_bytes());
+    bytes.extend_from_slice(&id.to_be_bytes());
+    bytes.extend_from_slice(&frame_offset.to_be_bytes());
+    fs::write(path, bytes).unwrap();
+
+    assert_collection_rejects_without_changes(&directory, name, |collection| collection.list());
+}
+
+#[test]
+fn interrupted_insert_after_index_write_into_empty_collection_is_rejected_on_reopen() {
+    assert_index_only_insertion_is_rejected(0);
+}
+
+#[test]
+fn interrupted_insert_after_index_write_into_nonempty_collection_is_rejected_on_reopen() {
+    assert_index_only_insertion_is_rejected(1);
+}
+
+#[test]
+fn insertion_rejects_corrupt_storage_magic_without_mutation() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| store[0] ^= 1,
+        |collection| collection.insert_one(TestRecord::new("must not append", 2)),
+    );
+}
+
+#[test]
+fn deletion_rejects_corrupt_storage_magic_without_mutation() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| store[0] ^= 1,
+        |collection| collection.delete_one(1),
+    );
+}
+
+#[test]
+fn update_rejects_corrupt_storage_magic_without_mutation() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| store[0] ^= 1,
+        |collection| collection.update_one(1, TestRecord::new("must not replace", 2)),
+    );
+}
+
+#[test]
+fn insertion_rejects_unsupported_storage_version_without_mutation() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| store[STORAGE_VERSION_OFFSET] = u8::MAX,
+        |collection| collection.insert_one(TestRecord::new("must not append", 2)),
+    );
+}
+
+#[test]
+fn deletion_rejects_unsupported_storage_version_without_mutation() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| store[STORAGE_VERSION_OFFSET] = u8::MAX,
+        |collection| collection.delete_one(1),
+    );
+}
+
+#[test]
+fn update_rejects_unsupported_storage_version_without_mutation() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| store[STORAGE_VERSION_OFFSET] = u8::MAX,
+        |collection| collection.update_one(1, TestRecord::new("must not replace", 2)),
+    );
+}
+
+#[test]
+fn deletion_rejects_invalid_frame_flag_without_mutation() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| store[STORAGE_HEADER_TOTAL_BYTES] = 2,
+        |collection| collection.delete_one(1),
+    );
+}
+
+#[test]
+fn update_rejects_invalid_frame_flag_without_mutation() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| store[STORAGE_HEADER_TOTAL_BYTES] = 2,
+        |collection| collection.update_one(1, TestRecord::new("must not replace", 2)),
+    );
+}
+
+fn assert_mutation_rejects_index_pointing_to_tombstone(
+    operation: impl FnOnce(&mut Colection<TestRecord>) -> Result<(), StoreError>,
+) {
+    let directory = TestDirectory::new();
+    let name = "stale_tombstone_offset";
+    let store = create_collection(&directory, name);
+    let mut collection = store.collection::<TestRecord>(name).unwrap();
+    collection.insert_one(TestRecord::new("old", 1)).unwrap();
+    collection
+        .update_one(1, TestRecord::new("current", 2))
+        .unwrap();
+    assert_eq!(
+        collection.list().unwrap(),
+        vec![TestRecord {
+            id: 1,
+            name: "current".into(),
+            number: 2,
+        }]
+    );
+    drop(collection);
+    drop(store);
+
+    let path = directory.index_path(name);
+    let mut bytes = fs::read(&path).unwrap();
+    // Both old and current payloads contain ID 1. Only the frame state reveals
+    // that this offset points to the obsolete version; an ID check is not enough.
+    bytes[INDEX_HEADER_TOTAL_BYTES + 4..INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN]
+        .copy_from_slice(&(STORAGE_HEADER_TOTAL_BYTES as u64).to_be_bytes());
+    fs::write(path, bytes).unwrap();
+
+    assert_collection_rejects_without_changes(&directory, name, operation);
+}
+
+#[test]
+fn deletion_rejects_index_pointing_to_tombstoned_version_without_mutation() {
+    assert_mutation_rejects_index_pointing_to_tombstone(|collection| collection.delete_one(1));
+}
+
+#[test]
+fn update_rejects_index_pointing_to_tombstoned_version_without_mutation() {
+    assert_mutation_rejects_index_pointing_to_tombstone(|collection| {
+        collection.update_one(1, TestRecord::new("must not replace", 3))
+    });
+}
+
+#[test]
+fn deletion_rejects_maximum_index_offset_without_panicking_or_mutating_files() {
+    assert_single_record_mutation_rejects_corruption(
+        |_store, index| {
+            index[INDEX_HEADER_TOTAL_BYTES + 4..INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN]
+                .copy_from_slice(&u64::MAX.to_be_bytes());
+        },
+        |collection| collection.delete_one(1),
+    );
+}
+
+#[test]
+fn update_rejects_maximum_index_offset_without_panicking_or_mutating_files() {
+    assert_single_record_mutation_rejects_corruption(
+        |_store, index| {
+            index[INDEX_HEADER_TOTAL_BYTES + 4..INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN]
+                .copy_from_slice(&u64::MAX.to_be_bytes());
+        },
+        |collection| collection.update_one(1, TestRecord::new("must not replace", 2)),
+    );
+}
+
+#[test]
+fn deletion_rejects_dead_bytes_overflow_without_panicking_or_mutating_files() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| {
+            store[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+                .copy_from_slice(&u64::MAX.to_be_bytes());
+        },
+        |collection| collection.delete_one(1),
+    );
+}
+
+#[test]
+fn update_rejects_dead_bytes_overflow_without_panicking_or_mutating_files() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| {
+            store[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+                .copy_from_slice(&u64::MAX.to_be_bytes());
+        },
+        |collection| collection.update_one(1, TestRecord::new("must not replace", 2)),
+    );
+}
+
+fn assert_large_index_mutation_does_not_wrap(
+    operation: impl FnOnce(&mut Colection<TestRecord>, u32) -> Result<(), StoreError>,
+    expected_success: impl FnOnce(u32, &mut Vec<u8>, &mut Vec<u8>),
+) {
+    let directory = TestDirectory::new();
+    let name = "large_sparse_index";
+    let store = create_collection(&directory, name);
+    drop(store);
+
+    // This slot exists beyond u32::MAX, so lookup can reach the mutation helper.
+    // Unlike the earlier tiny-file test, it cannot fail merely on reading EOF.
+    let id = 357_913_942u32;
+    let mut store_bytes = storage_header(id + 1, 1, 0);
+    append_frame(&mut store_bytes, &encoded_payload(id, "original", 1));
+    write_store_bytes(&directory, name, &store_bytes);
+    let index_path = directory.index_path(name);
+    let mut index_header = fs::read(&index_path).unwrap();
+    index_header[INDEX_RECORD_COUNT_OFFSET..INDEX_HEADER_TOTAL_BYTES]
+        .copy_from_slice(&id.to_be_bytes());
+    let slot_position =
+        INDEX_HEADER_TOTAL_BYTES as u64 + (u64::from(id) - 1) * INDEX_RECORD_LEN as u64;
+    assert!(slot_position > u64::from(u32::MAX));
+    let mut slot = Vec::with_capacity(INDEX_RECORD_LEN);
+    slot.extend_from_slice(&id.to_be_bytes());
+    slot.extend_from_slice(&(STORAGE_HEADER_TOTAL_BYTES as u64).to_be_bytes());
+
+    // Seeking creates a sparse hole: only the header and last slot are written.
+    // Intervening IDs are deliberately unpopulated, so full validation may
+    // reject this fixture. If a targeted mutation succeeds, it must modify the
+    // exact high slot and frame, without touching the prefix. Never read the
+    // whole file: this test isolates position arithmetic, not a full index scan.
+    let mut file = OpenOptions::new().write(true).open(&index_path).unwrap();
+    file.write_all(&index_header).unwrap();
+    file.seek(SeekFrom::Start(slot_position)).unwrap();
+    file.write_all(&slot).unwrap();
+    drop(file);
+    let index_length = slot_position + INDEX_RECORD_LEN as u64;
+
+    let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
+        let mut collection = directory.connect().collection::<TestRecord>(name)?;
+        operation(&mut collection, id)
+    }));
+    assert!(outcome.is_ok(), "large index positions must not panic");
+    if outcome.unwrap().is_ok() {
+        expected_success(id, &mut store_bytes, &mut slot);
+    }
+
+    // An error must preserve the original bytes; success must produce exactly
+    // the requested mutation. Both branches reject wrapped writes near byte 0.
+    assert_eq!(fs::read(directory.store_path(name)).unwrap(), store_bytes);
+    let mut file = fs::File::open(index_path).unwrap();
+    assert_eq!(file.metadata().unwrap().len(), index_length);
+    // Include the first empty slot: a wrapped u32 position writes near here.
+    let mut prefix = vec![0; INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN];
+    file.read_exact(&mut prefix).unwrap();
+    index_header.resize(prefix.len(), 0);
+    assert_eq!(prefix, index_header);
+    let mut actual_slot = [0; INDEX_RECORD_LEN];
+    file.seek(SeekFrom::Start(slot_position)).unwrap();
+    file.read_exact(&mut actual_slot).unwrap();
+    assert_eq!(actual_slot.as_slice(), slot.as_slice());
+}
+
+#[test]
+fn deletion_with_large_present_index_id_does_not_wrap_or_panic() {
+    assert_large_index_mutation_does_not_wrap(
+        |collection, id| collection.delete_one(id),
+        |_id, store, slot| {
+            let dead_bytes = (store.len() - STORAGE_HEADER_TOTAL_BYTES) as u64;
+            store[STORAGE_HEADER_TOTAL_BYTES] = STORAGE_PAYLOAD_FRAME_OFF[0];
+            store[STORAGE_RECORD_COUNT_OFFSET..STORAGE_DEAD_BYTES_OFFSET]
+                .copy_from_slice(&0u32.to_be_bytes());
+            store[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+                .copy_from_slice(&dead_bytes.to_be_bytes());
+            slot[4..].copy_from_slice(&0u64.to_be_bytes());
+        },
+    );
+}
+
+#[test]
+fn update_with_large_present_index_id_does_not_wrap_or_panic() {
+    assert_large_index_mutation_does_not_wrap(
+        |collection, id| collection.update_one(id, TestRecord::new("replacement", 2)),
+        |id, store, slot| {
+            let replacement_offset = store.len() as u64;
+            let dead_bytes = (store.len() - STORAGE_HEADER_TOTAL_BYTES) as u64;
+            store[STORAGE_HEADER_TOTAL_BYTES] = STORAGE_PAYLOAD_FRAME_OFF[0];
+            store[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+                .copy_from_slice(&dead_bytes.to_be_bytes());
+            append_frame(store, &encoded_payload(id, "replacement", 2));
+            slot[4..].copy_from_slice(&replacement_offset.to_be_bytes());
+        },
+    );
 }
