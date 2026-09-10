@@ -1,8 +1,5 @@
 use std::{
-    fs::{self},
-    io::{self, BufReader, Read, Seek, SeekFrom, Write},
-    marker::PhantomData,
-    path::PathBuf,
+    fs::{self, File}, io::{self, BufReader, Read, Seek, SeekFrom, Write}, marker::PhantomData, path::PathBuf,
 };
 
 use crate::{
@@ -22,6 +19,7 @@ use crate::{
 };
 
 pub struct Colection<T> {
+    // TODO: IMPROVE FILE OPEN
     store_path: PathBuf,
     index_path: PathBuf,
     _collection_type: PhantomData<T>,
@@ -34,6 +32,16 @@ impl<T> Colection<T> {
             index_path,
             _collection_type: PhantomData,
         }
+    }
+
+    fn check_index_magic_bytes(&self, f: &mut File) -> Result<(), StoreError> {
+        let mut magic_bytes_buff = [0u8; INDEX_MAGIC_END];
+        f.read_exact(&mut magic_bytes_buff)?;
+        let magic_bytes = str::from_utf8(&magic_bytes_buff)?;
+        if magic_bytes != INDEX_MAGIC {
+            return Err(StoreError::InvalidStorageIndexFormat);
+        }
+        Ok(())
     }
 
     fn insert_index(&self, id: u32, frame_offset: u64) -> Result<(), StoreError> {
@@ -58,12 +66,7 @@ impl<T> Colection<T> {
             .read(true)
             .write(true)
             .open(&self.index_path)?;
-        let mut magic_bytes_buff = [0u8; INDEX_MAGIC_END];
-        f.read_exact(&mut magic_bytes_buff)?;
-        let magic_bytes = str::from_utf8(&magic_bytes_buff)?;
-        if magic_bytes != INDEX_MAGIC {
-            return Err(StoreError::InvalidStorageIndexFormat);
-        }
+        self.check_index_magic_bytes(&mut f)?;
         f.seek(SeekFrom::Start(INDEX_RECORD_COUNT_OFFSET as u64))?;
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
@@ -161,11 +164,26 @@ impl<T> Colection<T> {
             .read(true)
             .write(true)
             .open(&self.store_path)?;
+        let file_len = f.metadata()?.len();
         let off_set = self.find_id_offset(id)?;
+        let record_count_position = f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
+        let mut record_count_buf = [0u8; 4];
+        f.read_exact(&mut record_count_buf)?;
+        let mut record_count = u32::from_be_bytes(record_count_buf);
+        record_count = record_count
+            .checked_sub(1)
+            .ok_or(StoreError::RecordCountMismatch)?;
         f.seek(SeekFrom::Start(off_set + 1))?;
         let mut payload_len_buf = [0u8; 4];
         f.read_exact(&mut payload_len_buf)?;
+        let payload_start = f.stream_position()?;
+        let remaining = file_len
+            .checked_sub(payload_start)
+            .ok_or(StoreError::TruncatedFrame)?;
         let payload_len = u32::from_be_bytes(payload_len_buf);
+        if payload_len as u64 > remaining {
+            return Err(StoreError::TruncatedFrame);
+        }
         let mut payload = vec![0u8; payload_len as usize];
         f.read_exact(&mut payload)?;
         let mut decoder = Decoder::new(&payload);
@@ -182,14 +200,10 @@ impl<T> Colection<T> {
         self.update_id_offset(id, 0)?;
         f.seek(SeekFrom::Start(off_set))?;
         f.write_all(STORAGE_PAYLOAD_FRAME_OFF)?;
+        f.seek(SeekFrom::Start(record_count_position))?;
+        f.write_all(&record_count.to_be_bytes())?;
         let dead_bytes =
             STORAGE_PAYLOAD_FLAG_SIZE + STORAGE_PAYLOAD_LEN_SIZE + payload_len as usize;
-        f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
-        let mut record_count_buf = [0u8; 4];
-        f.read_exact(&mut record_count_buf)?;
-        let record_count = u32::from_be_bytes(record_count_buf);
-        f.seek(SeekFrom::Current(-4))?;
-        f.write_all(&(record_count - 1).to_be_bytes())?;
         let mut dead_bytes_buf = [0u8; 8];
         f.read_exact(&mut dead_bytes_buf)?;
         let total_dead_bytes = u64::from_be_bytes(dead_bytes_buf);
@@ -200,22 +214,44 @@ impl<T> Colection<T> {
 
     pub fn update_one(&mut self, id: u32, item: T) -> Result<(), StoreError>
     where
-        T: Encode,
+        T: Encode + Decode + HasId,
     {
         let mut f = fs::OpenOptions::new()
             .read(true)
             .write(true)
             .open(&self.store_path)?;
+        let file_len = f.metadata()?.len();
         let mut bytes = vec![];
         let payload = item.encode(id)?;
         let payload_size = u32::try_from(payload.len())?;
         bytes.extend_from_slice(STORAGE_PAYLOAD_FRAME_LIVE);
         bytes.extend_from_slice(&payload_size.to_be_bytes());
         bytes.extend_from_slice(&payload);
-        let frame_offset = f.seek(SeekFrom::End(0))?;
         let old_offset = self.find_id_offset(id)?;
-        self.update_id_offset(id, frame_offset)?;
-        f.write_all(&bytes)?;
+        f.seek(SeekFrom::Start(old_offset + 1))?;
+        let mut old_payload_len_buf = [0u8; 4];
+        f.read_exact(&mut old_payload_len_buf)?;
+        let old_payload_start = f.stream_position()?;
+        let remaining = file_len
+            .checked_sub(old_payload_start)
+            .ok_or(StoreError::TruncatedFrame)?;
+        let old_payload_len = u32::from_be_bytes(old_payload_len_buf);
+        if old_payload_len as u64 > remaining {
+            return Err(StoreError::TruncatedFrame);
+        }
+        let mut old_payload = vec![0u8; old_payload_len as usize];
+        f.read_exact(&mut old_payload)?;
+        let mut decoder = Decoder::new(&old_payload);
+        let old_item = T::decode(&mut decoder)?;
+        if !decoder.bytes.is_empty() {
+            return Err(StoreError::TrailingBytesInPayload);
+        }
+        if old_item.id() != id {
+            return Err(StoreError::IndexRecordIdMismatch {
+                expected_id: id,
+                actual_id: old_item.id(),
+            });
+        }
         f.seek(SeekFrom::Start(old_offset))?;
         f.write_all(STORAGE_PAYLOAD_FRAME_OFF)?;
         let mut payload_size_buf = [0u8; 4];
@@ -228,6 +264,9 @@ impl<T> Colection<T> {
         let dead_bytes = u64::from_be_bytes(dead_bytes_buf);
         f.seek(SeekFrom::Current(-8))?;
         f.write_all(&(total_record_bytes as u64 + dead_bytes).to_be_bytes())?;
+        let frame_offset = f.seek(SeekFrom::End(0))?;
+        f.write_all(&bytes)?;
+        self.update_id_offset(id, frame_offset)?;
         Ok(())
     }
 
