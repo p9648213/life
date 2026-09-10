@@ -36,10 +36,10 @@ impl Store {
         if !Self::is_valid_collection_name(name) {
             return Err(StoreError::InvalidCollectionName);
         }
-        Ok(Colection::new(
+        Colection::new(
             self.path.join(format!("{}.{}", name, COLLECTION_EXTENSION)),
             self.path.join(format!("{}.{}", name, INDEX_EXTENSION)),
-        ))
+        )
     }
 
     pub fn create_collection(&self, name: &str) -> std::io::Result<()> {

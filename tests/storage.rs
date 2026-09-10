@@ -727,33 +727,28 @@ fn cached_record_count_tracks_completed_deletion() {
 }
 
 #[test]
-fn index_write_failure_is_reported_and_inconsistent_reopen_is_rejected() {
+fn opening_collection_with_directory_instead_of_index_is_rejected() {
     let directory = TestDirectory::new();
     let store = create_collection(&directory, "failed_insert");
     let index_path = directory.index_path("failed_insert");
+    let store_path = directory.store_path("failed_insert");
+    let original_store_bytes = fs::read(&store_path).unwrap();
     fs::remove_file(&index_path).unwrap();
     fs::create_dir(&index_path).unwrap();
-    let mut collection = store
-        .collection::<TestRecord>("failed_insert")
-        .expect("select collection with a valid name");
 
-    assert!(
-        collection
-            .insert_one(TestRecord::new("partially written", 1))
-            .is_err(),
-        "an index write failure must not be reported as success"
-    );
-    drop(collection);
+    // Collection construction now opens both persistent file handles, so the
+    // invalid index must be rejected before a mutation can be attempted.
+    assert_operation_returns_error_without_panicking(|| {
+        store.collection::<TestRecord>("failed_insert")
+    });
     drop(store);
 
     let reopened_store = directory.connect();
-    let mut reopened = reopened_store
-        .collection::<TestRecord>("failed_insert")
-        .expect("select collection with a valid name");
-    assert!(
-        reopened.list().is_err(),
-        "reopening must reject a store/index pair left inconsistent by a failed mutation"
-    );
+    assert_operation_returns_error_without_panicking(|| {
+        reopened_store.collection::<TestRecord>("failed_insert")
+    });
+    assert_eq!(fs::read(store_path).unwrap(), original_store_bytes);
+    assert!(index_path.is_dir(), "opening must not replace the invalid index");
 }
 
 #[test]
@@ -1462,16 +1457,14 @@ fn reopening_empty_collection_with_missing_index_returns_error() {
     let original_store_bytes = fs::read(&store_path).unwrap();
     let index_path = directory.index_path("empty_missing_index");
     fs::remove_file(&index_path).unwrap();
-    let mut reopened = directory
-        .connect()
-        .collection::<TestRecord>("empty_missing_index")
-        .expect("select collection with a valid name");
-
-    assert_operation_returns_error_without_panicking(|| reopened.list());
+    let reopened_store = directory.connect();
+    assert_operation_returns_error_without_panicking(|| {
+        reopened_store.collection::<TestRecord>("empty_missing_index")
+    });
     assert_eq!(fs::read(store_path).unwrap(), original_store_bytes);
     assert!(
         !index_path.exists(),
-        "reading must not silently recreate the missing index"
+        "opening must not silently recreate the missing index"
     );
 }
 

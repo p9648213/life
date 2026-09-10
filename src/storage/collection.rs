@@ -1,5 +1,8 @@
 use std::{
-    fs::{self, File}, io::{self, BufReader, Read, Seek, SeekFrom, Write}, marker::PhantomData, path::PathBuf,
+    fs::{self, File},
+    io::{self, BufReader, Read, Seek, SeekFrom, Write},
+    marker::PhantomData,
+    path::PathBuf,
 };
 
 use crate::{
@@ -19,22 +22,29 @@ use crate::{
 };
 
 pub struct Colection<T> {
-    // TODO: IMPROVE FILE OPEN
-    store_path: PathBuf,
-    index_path: PathBuf,
+    store_file: File,
+    index_file: File,
     _collection_type: PhantomData<T>,
 }
 
 impl<T> Colection<T> {
-    pub fn new(store_path: PathBuf, index_path: PathBuf) -> Self {
-        Self {
-            store_path,
-            index_path,
+    pub fn new(store_path: PathBuf, index_path: PathBuf) -> Result<Self, StoreError> {
+        Ok(Self {
+            store_file: fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&store_path)?,
+            index_file: fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&index_path)?,
             _collection_type: PhantomData,
-        }
+        })
     }
 
-    fn check_index_magic_bytes(&self, f: &mut File) -> Result<(), StoreError> {
+    fn check_index_magic_bytes(&self) -> Result<(), StoreError> {
+        let mut f = &self.index_file;
+        f.seek(SeekFrom::Start(0))?;
         let mut magic_bytes_buff = [0u8; INDEX_MAGIC_END];
         f.read_exact(&mut magic_bytes_buff)?;
         let magic_bytes = str::from_utf8(&magic_bytes_buff)?;
@@ -45,10 +55,7 @@ impl<T> Colection<T> {
     }
 
     fn insert_index(&self, id: u32, frame_offset: u64) -> Result<(), StoreError> {
-        let mut f = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&self.index_path)?;
+        let mut f = &self.index_file;
         f.seek(SeekFrom::Start(INDEX_RECORD_COUNT_OFFSET as u64))?;
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
@@ -62,11 +69,8 @@ impl<T> Colection<T> {
     }
 
     fn find_id_offset(&self, id: u32) -> Result<u64, StoreError> {
-        let mut f = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&self.index_path)?;
-        self.check_index_magic_bytes(&mut f)?;
+        let mut f = &self.index_file;
+        self.check_index_magic_bytes()?;
         f.seek(SeekFrom::Start(INDEX_RECORD_COUNT_OFFSET as u64))?;
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
@@ -92,16 +96,8 @@ impl<T> Colection<T> {
     }
 
     fn update_id_offset(&self, id: u32, update_offset: u64) -> Result<(), StoreError> {
-        let mut f = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&self.index_path)?;
-        let mut magic_bytes_buff = [0u8; INDEX_MAGIC_END];
-        f.read_exact(&mut magic_bytes_buff)?;
-        let magic_bytes = str::from_utf8(&magic_bytes_buff)?;
-        if magic_bytes != INDEX_MAGIC {
-            return Err(StoreError::InvalidStorageIndexFormat);
-        }
+        let mut f = &self.index_file;
+        self.check_index_magic_bytes()?;
         f.seek(SeekFrom::Start(INDEX_RECORD_COUNT_OFFSET as u64))?;
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
@@ -119,10 +115,7 @@ impl<T> Colection<T> {
     where
         T: Encode,
     {
-        let mut f = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&self.store_path)?;
+        let mut f = &self.store_file;
         f.seek(SeekFrom::Start(STORAGE_NEXT_ID_OFFSET as u64))?;
         let mut next_id_buf = [0u8; 4];
         f.read_exact(&mut next_id_buf)?;
@@ -160,10 +153,7 @@ impl<T> Colection<T> {
     where
         T: Decode + HasId,
     {
-        let mut f = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&self.store_path)?;
+        let mut f = &self.store_file;
         let file_len = f.metadata()?.len();
         let off_set = self.find_id_offset(id)?;
         let record_count_position = f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
@@ -216,10 +206,7 @@ impl<T> Colection<T> {
     where
         T: Encode + Decode + HasId,
     {
-        let mut f = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&self.store_path)?;
+        let mut f = &self.store_file;
         let file_len = f.metadata()?.len();
         let mut bytes = vec![];
         let payload = item.encode(id)?;
@@ -274,7 +261,8 @@ impl<T> Colection<T> {
     where
         T: Decode + HasId,
     {
-        let f = fs::OpenOptions::new().read(true).open(&self.store_path)?;
+        let mut f = &self.store_file;
+        f.seek(SeekFrom::Start(0))?;
         let mut reader = BufReader::new(f);
         let file_len = reader.get_ref().metadata()?.len();
         let mut header_buf = [0u8; STORAGE_HEADER_TOTAL_BYTES];
@@ -356,7 +344,8 @@ impl<T> Colection<T> {
     }
 
     pub fn record_count(&self) -> Result<u32, StoreError> {
-        let mut f = fs::OpenOptions::new().read(true).open(&self.store_path)?;
+        let mut f = &self.store_file;
+        f.seek(SeekFrom::Start(0))?;
         let mut header_buf = [0u8; STORAGE_HEADER_TOTAL_BYTES];
         f.read_exact(&mut header_buf)?;
         let record_count = u32::from_be_bytes(
