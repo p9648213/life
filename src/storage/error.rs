@@ -41,6 +41,7 @@ pub enum StoreError {
     InvalidNextId(u32),
     OverflowIndexRecordCount,
     OverflowStoreRecordCount,
+    IndexPointsToDeletedFrame
 }
 
 impl From<std::io::Error> for StoreError {
@@ -170,6 +171,9 @@ impl fmt::Display for StoreError {
             }
             StoreError::OverflowStoreRecordCount => {
                 write!(f, "Overflow store record count")
+            }
+            StoreError::IndexPointsToDeletedFrame => {
+                write!(f, "Index point to deleted frame")
             }
         }
     }

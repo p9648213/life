@@ -1895,3 +1895,130 @@ fn update_with_large_present_index_id_does_not_wrap_or_panic() {
         },
     );
 }
+
+#[test]
+fn insertion_rejects_trailing_index_bytes_without_mutation() {
+    // Exercise both an empty index and one containing a valid record. Include
+    // a partial entry and a full undeclared entry: neither is valid padding.
+    for existing_records in [0, 1] {
+        for trailing_length in [1, INDEX_RECORD_LEN] {
+            let directory = TestDirectory::new();
+            let name = "trailing_index_bytes";
+            let store = create_collection(&directory, name);
+            let mut collection = store.collection::<TestRecord>(name).unwrap();
+            for _ in 0..existing_records {
+                collection.insert_one(TestRecord::new("original", 1)).unwrap();
+            }
+            assert_eq!(collection.list().unwrap().len(), existing_records);
+            drop(collection);
+            drop(store);
+
+            let path = directory.index_path(name);
+            let mut bytes = fs::read(&path).unwrap();
+            bytes.extend(vec![0x63; trailing_length]);
+            fs::write(path, bytes).unwrap();
+
+            assert_collection_rejects_without_changes(&directory, name, |collection| {
+                collection.insert_one(TestRecord::new("new", 2))
+            });
+        }
+    }
+}
+
+#[test]
+fn interrupted_delete_before_clearing_index_is_rejected_on_reopen() {
+    let directory = TestDirectory::new();
+    let name = "interrupted_delete_stale_index";
+    let store = create_collection(&directory, name);
+    let mut collection = store.collection::<TestRecord>(name).unwrap();
+    collection.insert_one(TestRecord::new("original", 1)).unwrap();
+    assert_eq!(collection.list().unwrap().len(), 1);
+    drop(collection);
+    drop(store);
+
+    // Simulate the writes up to, but excluding, clearing the index slot:
+    // dead_bytes and live count are updated, and the frame is tombstoned.
+    // The unchanged index still points to this now-deleted frame.
+    let path = directory.store_path(name);
+    let mut bytes = fs::read(&path).unwrap();
+    let dead_bytes = (bytes.len() - STORAGE_HEADER_TOTAL_BYTES) as u64;
+    bytes[STORAGE_DEAD_BYTES_OFFSET..STORAGE_HEADER_TOTAL_BYTES]
+        .copy_from_slice(&dead_bytes.to_be_bytes());
+    bytes[STORAGE_HEADER_TOTAL_BYTES] = STORAGE_PAYLOAD_FRAME_OFF[0];
+    bytes[STORAGE_RECORD_COUNT_OFFSET..STORAGE_DEAD_BYTES_OFFSET]
+        .copy_from_slice(&0u32.to_be_bytes());
+    fs::write(path, bytes).unwrap();
+
+    assert_collection_rejects_without_changes(&directory, name, |collection| collection.list());
+}
+
+#[test]
+fn insertion_rejects_live_count_overflow_without_mutating_either_file() {
+    assert_single_record_mutation_rejects_corruption(
+        |store, _index| {
+            // Leave next_id and the index consistent so only the live-count
+            // validation prevents insertion. It must happen before any write.
+            store[STORAGE_RECORD_COUNT_OFFSET..STORAGE_DEAD_BYTES_OFFSET]
+                .copy_from_slice(&u32::MAX.to_be_bytes());
+        },
+        |collection| collection.insert_one(TestRecord::new("new", 2)),
+    );
+}
+
+fn assert_deleted_index_target_is_rejected(target: impl FnOnce(u64, u64) -> u64) {
+    let directory = TestDirectory::new();
+    let name = "deleted_index_target";
+    let store = create_collection(&directory, name);
+    let mut collection = store.collection::<TestRecord>(name).unwrap();
+    collection.insert_one(TestRecord::new("deleted", 1)).unwrap();
+    // The first name byte is 1, so a payload pointer can resemble a live flag.
+    let survivor = TestRecord::new("\u{1}survivor", 2);
+    collection.insert_one(survivor.clone()).unwrap();
+    collection.delete_one(1).unwrap();
+    assert_eq!(
+        collection.list().unwrap(),
+        vec![TestRecord { id: 2, ..survivor }]
+    );
+    drop(collection);
+    drop(store);
+
+    let file_len = fs::metadata(directory.store_path(name)).unwrap().len();
+    let path = directory.index_path(name);
+    let mut bytes = fs::read(&path).unwrap();
+    let survivor_slot = INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN;
+    let survivor_offset = u64::from_be_bytes(
+        bytes[survivor_slot + 4..survivor_slot + INDEX_RECORD_LEN]
+            .try_into()
+            .unwrap(),
+    );
+    // Corrupt only ID 1's cleared offset. ID 2 and all collection frames,
+    // counts, and lengths remain valid, so their checks cannot mask the bug.
+    bytes[INDEX_HEADER_TOTAL_BYTES + 4..INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN]
+        .copy_from_slice(&target(file_len, survivor_offset).to_be_bytes());
+    fs::write(path, bytes).unwrap();
+
+    assert_collection_rejects_without_changes(&directory, name, |collection| collection.list());
+}
+
+#[test]
+fn deleted_id_index_offset_beyond_eof_is_rejected_on_reopen() {
+    assert_deleted_index_target_is_rejected(|file_len, _| file_len + 100);
+}
+
+#[test]
+fn deleted_id_index_offset_inside_live_payload_is_rejected_on_reopen() {
+    assert_deleted_index_target_is_rejected(|file_len, survivor_offset| {
+        // Skip framing, ID, and string length to point at the name's byte 1.
+        let offset = survivor_offset
+            + (STORAGE_PAYLOAD_FLAG_SIZE + STORAGE_PAYLOAD_LEN_SIZE) as u64
+            + 4
+            + 4;
+        assert!(offset < file_len);
+        offset
+    });
+}
+
+#[test]
+fn deleted_id_index_offset_to_another_live_record_is_rejected_on_reopen() {
+    assert_deleted_index_target_is_rejected(|_, survivor_offset| survivor_offset);
+}

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::{self, BufReader, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
@@ -78,11 +79,18 @@ impl<T> Colection<T> {
         if version != INDEX_VERSION {
             return Err(StoreError::UnsupportIndexVersion);
         }
-        let expect_len = INDEX_HEADER_TOTAL_BYTES + 12 * record_count as usize;
-        if expect_len > file_len as usize {
+        let expect_len = u64::from(record_count)
+            .checked_mul(INDEX_RECORD_LEN as u64)
+            .and_then(|bytes| bytes.checked_add(INDEX_HEADER_TOTAL_BYTES as u64))
+            .ok_or(StoreError::InvalidStorageIndexFormat)?;
+        if expect_len != file_len {
             return Err(StoreError::InvalidStorageIndexFormat);
         }
-        if next_id != record_count + 1 {
+        if next_id
+            != record_count
+                .checked_add(1)
+                .ok_or(StoreError::OverflowIndexRecordCount)?
+        {
             return Err(StoreError::InvalidStorageIndexFormat);
         }
         Ok(())
@@ -129,9 +137,6 @@ impl<T> Colection<T> {
         let mut offset_buf = [0u8; 8];
         f.read_exact(&mut offset_buf)?;
         let offset = u64::from_be_bytes(offset_buf);
-        if offset == 0 {
-            return Err(StoreError::StorageIndexIdNotFound);
-        }
         Ok(offset)
     }
 
@@ -178,7 +183,6 @@ impl<T> Colection<T> {
         let payload = item.encode(id)?;
         let payload_size = u32::try_from(payload.len())?;
         let frame_offset = f.seek(SeekFrom::End(0))?;
-        self.insert_index(id, frame_offset)?;
         f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
         let check_record_count = record_count
             .checked_add(1)
@@ -191,6 +195,7 @@ impl<T> Colection<T> {
         bytes.extend_from_slice(&payload);
         f.seek(SeekFrom::End(0))?;
         f.write_all(&bytes)?;
+        self.insert_index(id, frame_offset)?;
         Ok(())
     }
 
@@ -201,7 +206,10 @@ impl<T> Colection<T> {
         self.check_collection_header()?;
         let mut f = &self.store_file;
         let file_len = f.metadata()?.len();
-        let off_set = self.find_id_offset(id)?;
+        let offset = self.find_id_offset(id)?;
+        if offset == 0 {
+            return Err(StoreError::StorageIndexIdNotFound);
+        }
         let record_count_position = f.seek(SeekFrom::Start(STORAGE_RECORD_COUNT_OFFSET as u64))?;
         let mut record_count_buf = [0u8; 4];
         f.read_exact(&mut record_count_buf)?;
@@ -209,7 +217,7 @@ impl<T> Colection<T> {
         record_count = record_count
             .checked_sub(1)
             .ok_or(StoreError::RecordCountMismatch)?;
-        f.seek(SeekFrom::Start(off_set))?;
+        f.seek(SeekFrom::Start(offset))?;
         let mut flag_buf = [0u8; 1];
         f.read_exact(&mut flag_buf)?;
         let flag = u8::from_be_bytes(flag_buf);
@@ -256,7 +264,7 @@ impl<T> Colection<T> {
             .ok_or(StoreError::OverflowDeadbytesSize)?;
         f.seek(SeekFrom::Current(-8))?;
         f.write_all(&update_dead_bytes.to_be_bytes())?;
-        f.seek(SeekFrom::Start(off_set))?;
+        f.seek(SeekFrom::Start(offset))?;
         f.write_all(STORAGE_PAYLOAD_FRAME_OFF)?;
         f.seek(SeekFrom::Start(record_count_position))?;
         f.write_all(&record_count.to_be_bytes())?;
@@ -278,6 +286,9 @@ impl<T> Colection<T> {
         bytes.extend_from_slice(&payload_size.to_be_bytes());
         bytes.extend_from_slice(&payload);
         let old_offset = self.find_id_offset(id)?;
+        if old_offset == 0 {
+            return Err(StoreError::StorageIndexIdNotFound);
+        }
         f.seek(SeekFrom::Start(
             old_offset
                 .checked_add(1)
@@ -361,6 +372,7 @@ impl<T> Colection<T> {
         );
         let mut total_record_dead_bytes = 0;
         let mut items = vec![];
+        let mut live_entry = HashMap::new();
         loop {
             let mut flag_buf = [0u8; 1];
             match reader.read_exact(&mut flag_buf) {
@@ -398,17 +410,18 @@ impl<T> Colection<T> {
                     return Err(StoreError::TrailingBytesInPayload);
                 }
                 let id = item.id();
-                let index_offset = self.find_id_offset(id)?;
-                if record_offset != index_offset {
+                let offset = self.find_id_offset(id)?;
+                if record_offset != offset {
                     return Err(StoreError::IndexRecordOffsetMismatch {
                         expected_offset: record_offset,
-                        actual_offset: index_offset,
+                        actual_offset: offset,
                     });
                 }
                 if id >= next_id {
                     return Err(StoreError::InvalidNextId(next_id));
                 }
                 items.push(item);
+                live_entry.insert(id, offset);
                 if items.len() as u32 > record_count {
                     return Err(StoreError::RecordCountMismatch);
                 }
@@ -421,6 +434,33 @@ impl<T> Colection<T> {
         }
         if total_record_dead_bytes as u64 != dead_bytes {
             return Err(StoreError::DeadBytesMismatch);
+        }
+        let f = &self.index_file;
+        let mut reader = BufReader::new(f);
+        reader.seek(SeekFrom::Start(INDEX_HEADER_TOTAL_BYTES as u64))?;
+        let mut expected_id = 1;
+        loop {
+            let mut id_buf = [0u8; 4];
+            let mut offset_buf = [0u8; 8];
+            match reader.read_exact(&mut id_buf) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(err) => return Err(StoreError::IoError(err)),
+            };
+            reader.read_exact(&mut offset_buf)?;
+            let id = u32::from_be_bytes(id_buf);
+            let offset = u64::from_be_bytes(offset_buf);
+            if id != expected_id {
+                return Err(StoreError::InvalidStorageIndexFormat);
+            }
+            expected_id += 1;
+            let expected_offset = live_entry.get(&id).copied().unwrap_or(0);
+            if offset != expected_offset {
+                return Err(StoreError::IndexRecordOffsetMismatch {
+                    expected_offset,
+                    actual_offset: offset,
+                });
+            }
         }
         Ok(items)
     }
