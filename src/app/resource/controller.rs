@@ -139,11 +139,11 @@ pub fn list_resourse<'buf, 'req>(
                     "<p class=\"empty-state\">No resources yet. Create one using the form.</p>",
                 );
             }
-            let view = templates::ResourceView {
+            let view = templates::ResourceResourceView {
                 list_resource: &cards,
                 total: &total,
             };
-            templates::render_resource(&mut html, view);
+            templates::render_resource_resource(&mut html, view);
             Response::html(StatusCode::Ok, &html)
         }
         Err(StoreError::StorageIndexIdNotFound) => {
