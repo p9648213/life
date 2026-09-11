@@ -6,6 +6,7 @@ use crate::{
         response::{Response, StatusCode},
     },
     state::State,
+    storage::error::StoreError,
     templates,
 };
 
@@ -97,32 +98,56 @@ pub fn update_resource<'buf, 'req>(
 }
 
 pub fn list_resourse<'buf, 'req>(
-    _request: &'req Request<'buf>,
+    request: &'req Request<'buf>,
     state: &mut State,
 ) -> Response<'req> {
+    let id = match request.query().get("id") {
+        Some(value) => match value.parse::<u32>() {
+            Ok(id) if id > 0 => Some(id),
+            _ => return Response::text_plain(StatusCode::BadRequest, "Invalid resource ID"),
+        },
+        None => None,
+    };
     let store = &state.store;
     let mut resource_collection = match store.collection::<Resource>(RESOURCE_COLLECTION) {
         Ok(resource_collection) => resource_collection,
         Err(err) => return Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
     };
-    let resources = resource_collection.list();
-    let total = resource_collection
-        .record_count()
-        .unwrap_or_default()
-        .to_string();
+    let resources = match id {
+        Some(id) => resource_collection
+            .find_one(id)
+            .map(|resource| vec![resource]),
+        None => resource_collection.list(),
+    };
     match resources {
         Ok(resources) => {
+            let total = resources.len().to_string();
             let mut html = String::new();
-            let resources: Vec<String> = resources
-                .into_iter()
-                .map(|r| format!("id: {} - name: {} - number: {}", r.id, r.name, r.number))
-                .collect();
+            let mut cards = String::new();
+            for resource in resources {
+                templates::render_resource_card(
+                    &mut cards,
+                    templates::ResourceCardView {
+                        id: &resource.id.to_string(),
+                        name: &resource.name,
+                        number: &resource.number.to_string(),
+                    },
+                );
+            }
+            if cards.is_empty() {
+                cards.push_str(
+                    "<p class=\"empty-state\">No resources yet. Create one using the form.</p>",
+                );
+            }
             let view = templates::ResourceView {
-                list_resource: &resources.join(", "),
+                list_resource: &cards,
                 total: &total,
             };
             templates::render_resource(&mut html, view);
             Response::html(StatusCode::Ok, &html)
+        }
+        Err(StoreError::StorageIndexIdNotFound) => {
+            Response::text_plain(StatusCode::NotFound, "Resource not found")
         }
         Err(err) => Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
     }

@@ -28,7 +28,7 @@
       }
 
       main {
-        width: min(900px, 100%);
+        width: min(1280px, 100%);
         margin: 0 auto;
       }
 
@@ -78,7 +78,7 @@
       }
 
       .form-grid.update {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .field {
@@ -150,7 +150,43 @@
         background: #b91c1c;
       }
 
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+        gap: 28px;
+        align-items: start;
+      }
+
+      .controls, .results { min-width: 0; }
+      .results-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .results-header h2 { margin: 0; font-size: 1.25rem; }
+      .resource-card {
+        padding: 24px;
+        border: 1px solid #e2e8f0;
+        border-top: 3px solid #2563eb;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+        min-width: 0;
+      }
+      .resource-id { color: #64748b; font-size: 0.8rem; font-weight: 700; }
+      .resource-card h3 { margin: 12px 0 20px; color: #0f172a; }
+      .resource-card dl { margin: 0; }
+      .resource-card dt { font-size: 0.8rem; color: #64748b; }
+      .resource-card dd { margin: 4px 0 0; font-size: 1.25rem; font-weight: 700; }
+      .empty-state { grid-column: 1 / -1; padding: 32px; border: 1px dashed #cbd5e1; border-radius: 14px; }
+
       .resource-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+        gap: 18px;
         line-height: 1.7;
         overflow-wrap: anywhere;
         color: #334155;
@@ -158,7 +194,7 @@
 
       .resource-total {
         display: inline-flex;
-        margin-top: 18px;
+        margin-top: 0;
         padding: 6px 10px;
         border-radius: 999px;
         background: #dbeafe;
@@ -167,7 +203,8 @@
         font-weight: 750;
       }
 
-      @media (max-width: 700px) {
+      @media (max-width: 800px) {
+        .workspace { grid-template-columns: 1fr; }
         body {
           padding: 28px 14px;
         }
@@ -194,61 +231,79 @@
         <p class="subtitle">Create, update, and remove stored resources.</p>
       </header>
 
-      <section class="card">
-        <h2>Create resource</h2>
-        <form class="form-grid" method="POST" action="/resources/create">
-          <div class="field">
-            <label for="create_r_name">Resource Name</label>
-            <input id="create_r_name" type="text" name="create_r_name" value="" />
-          </div>
-          <div class="field">
-            <label for="create_r_number">Resource Number</label>
-            <input id="create_r_number" type="text" name="create_r_number" value="" />
-          </div>
-          <button type="submit">Create resource</button>
-        </form>
-      </section>
+      <div class="workspace">
+        <aside class="controls" aria-label="Resource actions">
+          <section class="card">
+            <h2>Find resource</h2>
+            <form class="form-grid" method="GET" action="/resources">
+              <div class="field">
+                <label for="find_r_id">Resource ID</label>
+                <input id="find_r_id" type="number" name="id" min="1" max="4294967295" step="1" required />
+              </div>
+              <button type="submit">Find resource</button>
+            </form>
+          </section>
 
-      <section class="card">
-        <h2>Update resource</h2>
-        <form class="form-grid update" method="POST" action="/resources/update">
-          <div class="field">
-            <label for="update_r_id">Resource ID</label>
-            <input id="update_r_id" type="number" name="update_r_id" value="" />
-          </div>
-          <div class="field">
-            <label for="update_r_number">Resource Number</label>
-            <input
-              id="update_r_number"
-              type="number"
-              name="update_r_number"
-              value=""
-            />
-          </div>
-          <div class="field">
-            <label for="update_r_name">Resource Name</label>
-            <input id="update_r_name" type="text" name="update_r_name" value="" />
-          </div>
-          <button type="submit">Update resource</button>
-        </form>
-      </section>
+          <section class="card">
+            <h2>Create resource</h2>
+            <form class="form-grid" method="POST" action="/resources/create">
+              <div class="field">
+                <label for="create_r_name">Resource Name</label>
+                <input id="create_r_name" type="text" name="create_r_name" value="" />
+              </div>
+              <div class="field">
+                <label for="create_r_number">Resource Number</label>
+                <input id="create_r_number" type="text" name="create_r_number" value="" />
+              </div>
+              <button type="submit">Create resource</button>
+            </form>
+          </section>
 
-      <section class="card">
-        <h2>Delete resource</h2>
-        <form class="form-grid" method="POST" action="/resources/delete">
-          <div class="field">
-            <label for="delete_r_id">Resource ID</label>
-            <input id="delete_r_id" type="number" name="delete_r_id" value="" />
-          </div>
-          <button class="delete-button" type="submit">Delete resource</button>
-        </form>
-      </section>
+          <section class="card">
+            <h2>Update resource</h2>
+            <form class="form-grid update" method="POST" action="/resources/update">
+              <div class="field">
+                <label for="update_r_id">Resource ID</label>
+                <input id="update_r_id" type="number" name="update_r_id" value="" />
+              </div>
+              <div class="field">
+                <label for="update_r_number">Resource Number</label>
+                <input
+                  id="update_r_number"
+                  type="number"
+                  name="update_r_number"
+                  value=""
+                />
+              </div>
+              <div class="field">
+                <label for="update_r_name">Resource Name</label>
+                <input id="update_r_name" type="text" name="update_r_name" value="" />
+              </div>
+              <button type="submit">Update resource</button>
+            </form>
+          </section>
 
-      <section class="card">
-        <h2>Stored resources</h2>
-        <div class="resource-list">{@list_resource}</div>
-        <div class="resource-total">Total: {@total}</div>
-      </section>
+          <section class="card">
+            <h2>Delete resource</h2>
+            <form class="form-grid" method="POST" action="/resources/delete">
+              <div class="field">
+                <label for="delete_r_id">Resource ID</label>
+                <input id="delete_r_id" type="number" name="delete_r_id" value="" />
+              </div>
+              <button class="delete-button" type="submit">Delete resource</button>
+            </form>
+          </section>
+
+
+        </aside>
+        <section class="results" aria-labelledby="results-title">
+          <header class="results-header">
+            <h2 id="results-title">Stored resources</h2>
+            <span class="resource-total">Total: {@total}</span>
+          </header>
+          <div class="resource-list">{@list_resource}</div>
+        </section>
+      </div>
     </main>
   </body>
 </html>

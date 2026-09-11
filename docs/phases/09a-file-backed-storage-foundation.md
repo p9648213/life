@@ -37,47 +37,48 @@ A state byte of `1` marks a live frame and `0` marks a tombstoned frame. `live_r
 
 ## Expected Behavior
 
-A configured collection can encode, persist, reopen, and decode its record type. The file format is stable and self-identifying. Missing collection files represent empty data, while malformed, truncated, or unsupported data produces an explicit error.
+A configured collection can encode, persist, reopen, list, and find records by ID. Its format is stable and self-identifying. Missing collection files return an error; creating a collection is explicit.
 
-Mutations modify the configured collection file directly. Success is reported only after the required writes complete successfully. This phase does not promise atomic recovery from interruption during a mutation; reopening must report any resulting malformed or truncated file explicitly rather than silently accepting partial data.
+For this learning checkpoint, assume both the collection and index files contain valid data produced by this storage implementation, codecs match the stored record layout, and every mutation completes all required writes without interruption. Operations through multiple handles are sequential; concurrent mutation is outside this contract.
+
+Manual file corruption, invalid index offsets, mismatched metadata, partial writes, and crash recovery are deferred. Reopening and listing do not promise to detect these conditions. Basic magic/version checks and ordinary I/O and codec errors remain, but they are not comprehensive file validation. I/O errors still propagate rather than being reported as success; an error after a write can leave partial changes, with no rollback or recovery guarantee. Completed writes do not imply power-loss durability.
 
 Insertion appends a live frame. Deletion clears the record's index location and marks its frame as tombstoned without shrinking the collection file. Update preserves the ID by directing its index entry to an appended replacement frame and tombstoning the previous frame. Deletion and update add the full replaced frame length to `dead_bytes`. Reclaiming or reusing tombstoned space is deferred to Phase 09C and requires measurement.
 
 ## Requirements
 
-- Define a file header containing magic bytes, a format version, next ID, live-record count, and dead-byte count.
-- Encode multi-byte integers in big-endian order.
-- Frame variable-sized fields and records with a state byte and checked length.
-- Reject a declared length that does not fit within the bytes physically remaining in its frame or file before allocating or consuming it.
-- Reject unknown frame-state values and truncated live or tombstoned frames.
-- Require each record decoder to consume exactly its framed payload.
-- Keep live-record and dead-byte metadata consistent with the frames in the collection file.
-- Preserve stable IDs and derive a safe next ID after reopening.
+- Define the collection header, index slots, and record framing explicitly; encode multi-byte integers in big-endian order.
+- Encode and decode records manually, with checked field lengths and ordinary codec error propagation.
+- Preserve stable IDs, live counts, and dead-byte accounting across completed insertions, updates, deletions, and reopening.
+- Reject missing or deleted IDs, including index offset zero, in targeted operations.
+- Keep checked ID/count/dead-byte arithmetic and wide index-position calculations.
 - Validate collection identifiers so they cannot escape the storage root.
-- Distinguish a missing file from permission, corruption, version, and other I/O errors.
-- Modify one collection file directly for each mutation.
-- Document the order of direct file changes and which interrupted states may remain readable, malformed, or truncated.
+- Retain basic format/version recognition and propagate file-opening and I/O errors.
+- Keep cursor movement explicit; seek through the active buffered reader when scanning.
 - Keep domain validation outside the generic storage codec.
 - Do not use raw struct memory, pointers, padding bytes, or platform-dependent layout as the persistent format.
 
-## Tests to Write
+## Tests
 
-- primitive integers round-trip with the documented byte order;
-- empty, Unicode, delimiter-containing, and newline-containing strings round-trip;
-- one concrete record type round-trips through its manual codec;
-- multiple records survive constructing a new storage instance;
-- attempts to read a collection whose files do not exist return an error;
-- invalid magic bytes and unsupported versions are rejected;
-- malformed lengths, invalid UTF-8, invalid frame states, truncated live or tombstoned frames, and trailing record bytes are rejected;
-- collection traversal and absolute-path attempts are rejected;
-- IDs remain valid after reopening;
-- failed persistence is not reported as success;
-- direct insertion, tombstoned deletion, and append-and-tombstone update preserve every unaffected record when the writes complete successfully;
-- deletion and update record the full tombstoned frame length in `dead_bytes`;
-- malformed or truncated states left by an interrupted direct mutation are rejected on reopening;
+The simplified storage suite retains 38 tests:
+
+- 22 tests for normal operations, codecs, stable IDs, collection paths, and linear decoding;
+- 7 tests for arithmetic overflow and large index positions;
+- 3 tests for missing files and invalid file paths;
+- 6 tests for unsupported file versions.
+
+The 45 corruption and interrupted-write tests were deleted for this checkpoint. Some retained arithmetic tests still construct artificial header values or sparse files to exercise numeric boundaries without creating billions of records; this does not establish general corruption handling.
+
+Keep normal deleted-ID lookup coverage. An index deliberately redirected to another record is outside the current contract.
+
+## Performance And Deferred Work
+
+Listing makes one pass over data frames, skips tombstoned payloads, and decodes each live payload once. It does not build a live-offset map, perform per-record index lookups, or rescan the index. With linear codecs, work is O(frame count + live payload bytes); memory holds the decoded live records and one temporary payload. A targeted lookup reads one index slot and one payload, with O(payload size) work and memory for a linear codec.
+
+Explicit file, payload, record-count, and decoded-memory limits remain unfinished Phase 09B work. Corruption validation and interrupted-write handling are separate deferred work to revisit later; they are not completed by adopting these assumptions. Phase 09C optimizations still require measurement.
 
 ## Checkpoint
 
-You are done when at least one application record type is encoded and decoded through the generic storage boundary, valid records survive reopening, corrupt input fails explicitly, direct insertion, update, and deletion preserve unaffected records, and a failed direct mutation cannot be reported as successful.
+You are done with this simplified checkpoint when valid records survive reopening, normal lookup and completed mutations preserve IDs and unaffected records, metadata is updated correctly, and the retained tests pass. This does not establish production readiness or safe handling of damaged files.
 
-After this, continue with [Phase 09B: File-Storage Limits](09b-file-storage-limits.md). Revisit [Phase 09C: File-Storage Performance Optimization](09c-file-storage-performance-optimization.md) only after measurement identifies a storage bottleneck.
+Continue to [Phase 10: Static Files and CSS](10-static-files-css.md) as the chosen learning order. Return to [Phase 09B: File-Storage Limits](09b-file-storage-limits.md) later, and revisit [Phase 09C: File-Storage Performance Optimization](09c-file-storage-performance-optimization.md) after measurement identifies a bottleneck.

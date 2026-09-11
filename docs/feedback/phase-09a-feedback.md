@@ -1,62 +1,56 @@
 # Phase 09A Feedback
 
-## Overall
+## Current Scope
 
-You completed the main file-storage foundation: application records can be manually encoded, persisted, reopened, listed, updated, and deleted through a generic collection boundary. The implementation uses the standard library without a serialization or database dependency.
+The storage foundation supports manual codecs, persistence across reopening, listing, ID lookup, insertion, tombstoned deletion, and append-and-tombstone update through a generic collection. It uses the standard library without a serialization or database dependency.
 
-The review covered the storage layer, its codecs, and its tests. It does not establish production readiness or validate the entire backend.
+You chose a simpler learning checkpoint: trust valid collection/index files and matching codecs, and assume every mutation completes its writes without interruption. Operations are sequential, including operations through different handles. This supersedes the earlier feedback requiring full corruption and index-consistency validation.
 
-## Verified Results
+The [Phase 09A requirements](../phases/09a-file-backed-storage-foundation.md) describe the current contract. Corruption detection, interrupted-write handling, and recovery remain deferred. This review does not establish production readiness.
 
-- `cargo test --locked --test storage`: 81 passed, 0 failed; the latest run finished in 0.02 seconds after compilation.
-- `git diff --check`: passed.
-- Separate diagnostic tests for a wrong ID in a cleared index slot and maximum index-count overflow passed after their fixes. These two diagnostics were run outside the repository test suite; they are not included in the 81 tests.
-- Regression coverage includes persistence across reopening, stable IDs, update/delete preservation, malformed framing, payload bounds, metadata inconsistencies, and several interrupted-write states.
-- Index-offset regressions reject a deleted ID pointing beyond EOF, inside a live payload, or to another ID's live frame.
+## Test Scope
 
-The short suite runtime is functional-test evidence, not a benchmark for millions of records. Full-workspace tests, formatting, and Clippy are not claimed as part of this storage review.
+The suite was reduced from 83 tests to 38 by deleting the agreed 45 corruption and interrupted-write tests. The retained coverage is:
 
-## What You Did Well
+- 22 normal-operation, codec, ID, path, and linear-decoding tests;
+- 7 arithmetic and large-ID tests;
+- 3 missing-file or invalid-path tests;
+- 6 unsupported-version tests.
 
-- `Store` selects validated collection names under a configured root; collection framing remains separate from application record encoding.
-- Primitive codecs use explicit big-endian bytes and checked string lengths. Live record decoding must consume exactly its framed payload.
-- Frame lengths are checked against physically remaining file bytes before payload allocation or skipping, including tombstoned frames.
-- Insertions append records; updates preserve IDs through replacement frames; deletions retain tombstones. Live count and dead-byte accounting are checked against the scanned frames.
-- Mutations check target IDs and offsets, and arithmetic validation now precedes the relevant writes in the reviewed overflow cases.
-- Index length is checked exactly with checked `u64` arithmetic. Index-count increment overflow returns an error rather than panicking.
-- The final index scan checks both slot IDs and offsets against observed live frames. Cleared entries require no live frame; nonzero entries require a matching live frame.
-- Tests construct isolated files and introduce specific corruptions. Byte-preservation assertions distinguish a rejected operation from one that reports an error after modifying files.
+Arithmetic fixtures sometimes construct artificial metadata or sparse files to reach numeric boundaries cheaply. Those tests remain useful independently of general corruption detection.
 
-## Important Lessons From The Review
+The previous 81-test review and its external corruption diagnostics describe an earlier, stricter implementation. They are not evidence of guarantees provided by the simplified collection.
 
-An offset inside the file is not necessarily a frame boundary. Recording actual live-frame positions and checking index entries against them closes that gap without decoding payloads twice.
+## Verification After Simplification
 
-A cleared index entry is different from a missing or malformed entry. Returning offset zero from the lookup lets each caller apply the appropriate rule: listing may accept a deleted record, while update and delete reject an already-cleared entry.
+- Storage suite: 38 passed, 0 failed.
+- `cargo test --locked --workspace --quiet`: 148 passed, 0 failed. Two TCP tests initially could not bind sockets in the sandbox; the rerun with local socket access passed.
+- Formatting checked for the two edited Rust files; `git diff --check` passed.
 
-Keep cursor movement inside the active `BufReader`. Its logical position can differ from the underlying file position because it reads ahead. Seeking through the underlying file while buffered reads continue caused valid files to be reported as truncated.
+## Implementation Feedback
 
-Validation errors should be discovered before the first write whenever the necessary information is already available. A checked addition is insufficient if another file has already been modified before that check runs.
+The separation between store selection, collection framing, and application codecs remains useful. Stable IDs, explicit big-endian encoding, tombstones, live counts, and dead-byte accounting are preserved for completed operations.
 
-## Mutation And Recovery Boundary
+The collection now trusts index offsets. It no longer checks decoded IDs against index entries, reconciles metadata with scanned frames, checks exact index length, or verifies every slot against a live-frame map. Record lengths are read from trusted frames without checking them against physical file size before allocation. Basic format/version recognition, codec errors, I/O propagation, missing/deleted-ID checks, and arithmetic protection remain.
 
-The current write order is explicit but not atomic:
+Deletion reads the indexed frame length without decoding its payload. Update encodes the replacement and reads only the old frame length. These operations no longer need `Decode` or `HasId` bounds; lookup and listing require `Decode` only.
 
-- Insert updates the collection's live count and next ID, appends the frame, then updates the index count and appends its entry.
-- Delete updates dead bytes, tombstones the frame, decrements the live count, then clears the index offset.
+Keep cursor movement inside the active `BufReader`. Its logical position can differ from the underlying file because it reads ahead. Keep explicit seeks between operations on persistent handles.
+
+## Mutation Boundary
+
+The write order remains explicit:
+
+- Insert updates live count and next ID, appends a frame, then updates the index count and appends its entry.
+- Delete updates dead bytes, tombstones the frame, decrements live count, then clears its index offset.
 - Update increases dead bytes, tombstones the old frame, appends the replacement, then redirects the index entry.
 
-Interruption can leave mismatched metadata, incomplete frames, or stale index entries. The tests cover several such states being rejected when reopening and listing. Opening a handle alone does not perform the full scan. Automatic repair and atomic rollback are not provided, and completed writes are not a power-loss durability guarantee; there is no explicit synchronization to stable storage.
+Errors still propagate, but partial changes are not rolled back. The current contract does not guarantee detection or repair of interrupted writes on reopening. There is no explicit synchronization to stable storage, so completed writes are not a power-loss durability guarantee.
 
-## Performance And Deferred Work
+## Performance And Next Work
 
-Listing scans collection frames and then index entries. For linear record codecs, expected work scales with stored bytes and entry count; these are consecutive loops, not a nested scan. Memory includes all decoded live records, a live-offset map, and a temporary payload buffer. Tombstoned payloads are bounds-checked and skipped.
+Listing scans data frames once and skips tombstoned payloads. There is no live-offset map, final index scan, or index lookup per live record. For linear codecs, work is O(frame count + live payload bytes); memory contains decoded live records and one temporary payload. ID lookup reads one index slot and one payload.
 
-The implementation still performs a direct index lookup for each live frame before the final buffered index scan. Measure those repeated seeks and reads alongside map allocation, elapsed time, and peak memory before changing the algorithm. If removing those lookups later, preserve duplicate-live-ID detection and the existing consistency guarantees.
+The small functional suite is not a benchmark for millions of records. Explicit file, payload, record-count, and decoded-memory limits remain unfinished Phase 09B work. Corruption and interrupted-write support should be reintroduced deliberately with regression tests when revisiting that scope.
 
-Phase 09B remains unfinished: explicit file, record-count, payload, field, and decoded-memory limits still need boundary tests. Large physically valid files can therefore consume substantial memory and work. The passing suite does not demonstrate bounded behavior at a chosen maximum collection size.
-
-Keep compaction, scratch-buffer reuse, and other Phase 09C optimizations driven by measured workloads. Full index validation remains part of the design; the previously considered corruption exception was withdrawn.
-
-## Next Step
-
-You chose to continue to [Phase 10: Static Files and CSS](../phases/10-static-files-css.md) and return to [Phase 09B: File-Storage Limits](../phases/09b-file-storage-limits.md) later. This is a deliberate change in learning order, not completion of 09B. Carry the storage limits forward as unfinished work while keeping the Phase 10 exercise focused on static-file behavior.
+Continue to [Phase 10](../phases/10-static-files-css.md) and return to [Phase 09B](../phases/09b-file-storage-limits.md) later. Keep compaction and Phase 09C performance work driven by measurements.
