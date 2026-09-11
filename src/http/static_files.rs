@@ -2,87 +2,84 @@ use std::{fs::File, io::Read, path::Path};
 
 use crate::{
     constant::{CONTENT_TYPE, MAX_ASSET_SIZE},
-    http::response::{Response, StatusCode},
+    http::{
+        error::HttpError,
+        response::{Response, StatusCode},
+    },
 };
 
-pub fn serve_static(static_dir: &Path, asset_part: &str) -> Response {
-    if validate_asset_part(asset_part) {
-        let resolved_root = match static_dir.canonicalize() {
-            Ok(path) => path,
-            Err(err) => {
-                return Response::text_plain(StatusCode::InternalServerError, &err.to_string());
+enum StaticFileError {
+    InvalidPath,
+    NotFound,
+    TooLarge,
+    Io(std::io::Error),
+    Header(HttpError),
+}
+
+impl StaticFileError {
+    fn into_response(self) -> Response {
+        let (status, message) = match self {
+            Self::InvalidPath => (StatusCode::BadRequest, "invalid part"),
+            Self::NotFound => (StatusCode::NotFound, "Not Found"),
+            Self::TooLarge => (StatusCode::InternalServerError, "Limit exceed"),
+            Self::Io(err) => {
+                eprintln!("Static file I/O error: {err}");
+                (StatusCode::InternalServerError, "Internal Server Error")
+            }
+            Self::Header(err) => {
+                eprintln!("Static file response header error: {err}");
+                (StatusCode::InternalServerError, "Internal Server Error")
             }
         };
-        let resolved_file = match resolved_root.join(asset_part).canonicalize() {
-            Ok(path) => path,
-            Err(err) => {
-                let status = match err.kind() {
-                    std::io::ErrorKind::NotFound => StatusCode::NotFound,
-                    _ => StatusCode::InternalServerError,
-                };
-                return Response::text_plain(status, &err.to_string());
-            }
-        };
-        if resolved_file.starts_with(&resolved_root) {
-            match resolved_file.metadata() {
-                Ok(metadata) => {
-                    if metadata.is_file() {
-                        match File::open(&resolved_file) {
-                            Ok(file) => {
-                                let mut bytes = Vec::new();
-                                match file
-                                    .take((MAX_ASSET_SIZE + 1) as u64)
-                                    .read_to_end(&mut bytes)
-                                {
-                                    Ok(bytes_read) => {
-                                        if bytes_read > MAX_ASSET_SIZE {
-                                            Response::text_plain(
-                                                StatusCode::InternalServerError,
-                                                "Limit exceed",
-                                            )
-                                        } else {
-                                            let mut response = Response::new(StatusCode::Ok, bytes);
-                                            let content_type = content_type(&resolved_file);
-                                            match response.add_header(CONTENT_TYPE, content_type) {
-                                                Ok(_) => {}
-                                                Err(err) => {
-                                                    return Response::text_plain(
-                                                        StatusCode::InternalServerError,
-                                                        &err.to_string(),
-                                                    );
-                                                }
-                                            }
-                                            response
-                                        }
-                                    }
-                                    Err(err) => Response::text_plain(
-                                        StatusCode::InternalServerError,
-                                        &err.to_string(),
-                                    ),
-                                }
-                            }
-                            Err(err) => Response::text_plain(
-                                StatusCode::InternalServerError,
-                                &err.to_string(),
-                            ),
-                        }
-                    } else {
-                        Response::text_plain(StatusCode::NotFound, "Not Found")
-                    }
-                }
-                Err(err) => Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
-            }
-        } else {
-            Response::text_plain(StatusCode::NotFound, "Not Found")
-        }
-    } else {
-        Response::text_plain(StatusCode::BadRequest, "invalid part")
+        Response::text_plain(status, message)
     }
 }
 
+pub fn serve_static(static_dir: &Path, asset_part: &str) -> Response {
+    match try_serve_static(static_dir, asset_part) {
+        Ok(response) => response,
+        Err(err) => err.into_response(),
+    }
+}
+
+fn try_serve_static(static_dir: &Path, asset_part: &str) -> Result<Response, StaticFileError> {
+    if !validate_asset_part(asset_part) {
+        return Err(StaticFileError::InvalidPath);
+    }
+    let resolved_root = static_dir.canonicalize().map_err(StaticFileError::Io)?;
+    let resolved_file = resolved_root
+        .join(asset_part)
+        .canonicalize()
+        .map_err(|err| match err.kind() {
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => {
+                StaticFileError::NotFound
+            }
+            _ => StaticFileError::Io(err),
+        })?;
+    if !resolved_file.starts_with(&resolved_root) {
+        return Err(StaticFileError::NotFound);
+    }
+    let metadata = resolved_file.metadata().map_err(StaticFileError::Io)?;
+    if !metadata.is_file() {
+        return Err(StaticFileError::NotFound);
+    }
+    let file = File::open(&resolved_file).map_err(StaticFileError::Io)?;
+    let mut bytes = Vec::new();
+    file.take((MAX_ASSET_SIZE + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(StaticFileError::Io)?;
+    if bytes.len() > MAX_ASSET_SIZE {
+        return Err(StaticFileError::TooLarge);
+    }
+    let mut response = Response::new(StatusCode::Ok, bytes);
+    response
+        .add_header(CONTENT_TYPE, content_type(&resolved_file))
+        .map_err(StaticFileError::Header)?;
+    Ok(response)
+}
+
 fn validate_asset_part(asset_part: &str) -> bool {
-    !(asset_part.is_empty()
-        || asset_part.starts_with('/')
+    !(asset_part.starts_with('/')
         || asset_part.contains(['\\', ':', '\0', '%'])
         || asset_part
             .split('/')
