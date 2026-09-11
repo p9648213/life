@@ -73,6 +73,19 @@ Connection: close\r\n\
 }
 
 #[test]
+fn see_other_owns_generated_location_after_source_is_dropped() {
+    let response = {
+        let id = 42;
+        let location = format!("/resources?id={id}");
+        Response::see_other(&location).expect("generated redirect location should be accepted")
+    };
+    let serialized = String::from_utf8(response.to_bytes()).unwrap();
+
+    assert!(serialized.starts_with("HTTP/1.1 303 See Other\r\n"));
+    assert!(serialized.contains("Location: /resources?id=42\r\n"));
+}
+
+#[test]
 fn see_other_rejects_cr_or_lf_in_location() {
     for location in [
         "/resources\rInjected: yes",
@@ -92,9 +105,13 @@ fn see_other_rejects_cr_or_lf_in_location() {
 fn set_header_replaces_existing_content_type_case_insensitively() {
     let mut response = Response::html(StatusCode::Ok, "<h1>Hello</h1>");
 
-    response
-        .set_header("content-type", "application/xhtml+xml")
-        .expect("valid response header should replace the existing value");
+    {
+        let name = String::from("content-type");
+        let value = String::from("application/xhtml+xml");
+        response
+            .set_header(&name, &value)
+            .expect("valid response header should replace the existing value");
+    }
 
     let serialized = String::from_utf8(response.to_bytes()).unwrap();
     let normalized = serialized.to_ascii_lowercase();
@@ -106,9 +123,13 @@ fn set_header_replaces_existing_content_type_case_insensitively() {
 #[test]
 fn valid_custom_header_is_serialized() {
     let mut response = Response::new(StatusCode::Ok, b"abc".to_vec());
-    response
-        .add_header("X-Test", "yes")
-        .expect("valid response header should be accepted");
+    {
+        let name = String::from("X-Test");
+        let value = String::from("yes");
+        response
+            .add_header(&name, &value)
+            .expect("valid response header should be accepted");
+    }
 
     let serialized = String::from_utf8(response.to_bytes()).unwrap();
 

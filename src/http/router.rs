@@ -1,54 +1,69 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::http::{
     request::{HttpMethod, Request},
     response::{Response, StatusCode},
+    static_files::serve_static,
 };
 
-type Handler<T> = for<'req, 'buf> fn(&'req Request<'buf>, &mut T) -> Response<'req>;
+type Handler<T> = fn(&Request, &mut T) -> Response;
 
-pub struct Router<'route, T> {
-    get_routes: HashMap<&'route str, Handler<T>>,
-    post_routes: HashMap<&'route str, Handler<T>>,
+pub struct Router<T> {
+    get_routes: HashMap<String, Handler<T>>,
+    post_routes: HashMap<String, Handler<T>>,
+    static_prefix: Option<String>,
+    static_dir: Option<PathBuf>,
 }
 
-impl<'route, T> Default for Router<'route, T> {
+impl<T> Default for Router<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'route, T> Router<'route, T> {
+impl<T> Router<T> {
     pub fn new() -> Self {
         Self {
             get_routes: HashMap::new(),
             post_routes: HashMap::new(),
+            static_prefix: None,
+            static_dir: None,
         }
     }
 
-    fn get_routes(&self) -> &HashMap<&'route str, Handler<T>> {
+    fn get_routes(&self) -> &HashMap<String, Handler<T>> {
         &self.get_routes
     }
 
-    fn post_routes(&self) -> &HashMap<&'route str, Handler<T>> {
+    fn post_routes(&self) -> &HashMap<String, Handler<T>> {
         &self.post_routes
     }
 
-    pub fn get(&mut self, name: &'route str, handle: Handler<T>) -> &mut Self {
-        self.get_routes.insert(name, handle);
+    pub fn get(&mut self, name: &str, handle: Handler<T>) -> &mut Self {
+        self.get_routes.insert(name.to_string(), handle);
         self
     }
 
-    pub fn post(&mut self, name: &'route str, handle: Handler<T>) -> &mut Self {
-        self.post_routes.insert(name, handle);
+    pub fn post(&mut self, name: &str, handle: Handler<T>) -> &mut Self {
+        self.post_routes.insert(name.to_string(), handle);
         self
     }
 
-    pub fn handle_request<'req, 'buf>(
-        &self,
-        request: &'req Request<'buf>,
-        state: &mut T,
-    ) -> Response<'req> {
+    pub fn static_files(&mut self, static_prefix: &str, static_dir: &str) {
+        self.static_prefix = Some(static_prefix.to_string());
+        self.static_dir = Some(PathBuf::from(static_dir));
+    }
+
+    pub fn handle_request(&self, request: &Request, state: &mut T) -> Response {
+        if let Some(static_prefix) = &self.static_prefix
+            && let Some(static_dir) = &self.static_dir
+            && request.path().starts_with(static_prefix)
+        {
+            match request.method() {
+                HttpMethod::Get => return serve_static(static_dir),
+                HttpMethod::Post => return Response::new(StatusCode::MethodNotAllowed, vec![]),
+            }
+        }
         match request.method() {
             HttpMethod::Get => {
                 let routes = self.get_routes();

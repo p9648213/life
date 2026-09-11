@@ -3,9 +3,9 @@ use crate::{
     http::error::HttpError,
 };
 
-pub struct Response<'header> {
+pub struct Response {
     status_code: StatusCode,
-    headers: Vec<(&'header str, &'header str)>,
+    headers: Vec<(String, String)>,
     body_bytes: Vec<u8>,
 }
 
@@ -15,6 +15,7 @@ pub enum StatusCode {
     NotFound,
     InternalServerError,
     SeeOther,
+    MethodNotAllowed,
 }
 
 impl StatusCode {
@@ -25,6 +26,7 @@ impl StatusCode {
             Self::NotFound => 404,
             Self::InternalServerError => 500,
             Self::SeeOther => 303,
+            Self::MethodNotAllowed => 405,
         }
     }
 
@@ -35,11 +37,12 @@ impl StatusCode {
             Self::NotFound => "Not Found",
             Self::InternalServerError => "Internal Server Error",
             Self::SeeOther => "See Other",
+            Self::MethodNotAllowed => "Method Not Allowed",
         }
     }
 }
 
-impl<'header> Response<'header> {
+impl Response {
     pub fn new(status_code: StatusCode, body_bytes: Vec<u8>) -> Self {
         Self {
             status_code,
@@ -72,7 +75,7 @@ impl<'header> Response<'header> {
         response
     }
 
-    pub fn add_header(&mut self, name: &'header str, value: &'header str) -> Result<(), HttpError> {
+    pub fn add_header(&mut self, name: &str, value: &str) -> Result<(), HttpError> {
         for byte in [name, value].concat().bytes() {
             if byte == 13 || byte == 10 {
                 return Err(HttpError::RequestHeaderInvalid);
@@ -84,11 +87,11 @@ impl<'header> Response<'header> {
         {
             return Err(HttpError::RequestAddInvalidHeader(name.to_owned()));
         }
-        self.headers.push((name, value));
+        self.headers.push((name.to_string(), value.to_string()));
         Ok(())
     }
 
-    pub fn set_header(&mut self, name: &'header str, value: &'header str) -> Result<(), HttpError> {
+    pub fn set_header(&mut self, name: &str, value: &str) -> Result<(), HttpError> {
         for byte in [name, value].concat().bytes() {
             if byte == 13 || byte == 10 {
                 return Err(HttpError::RequestHeaderInvalid);
@@ -102,7 +105,7 @@ impl<'header> Response<'header> {
         }
         for (header_name, header_value) in self.headers.iter_mut() {
             if header_name.eq_ignore_ascii_case(name) {
-                *header_value = value
+                *header_value = value.to_string()
             }
         }
         Ok(())
@@ -111,7 +114,10 @@ impl<'header> Response<'header> {
     pub fn html(status_code: StatusCode, html: &str) -> Self {
         Response {
             status_code,
-            headers: vec![(CONTENT_TYPE, "text/html; charset=utf-8")],
+            headers: vec![(
+                CONTENT_TYPE.to_string(),
+                "text/html; charset=utf-8".to_string(),
+            )],
             body_bytes: html.as_bytes().to_vec(),
         }
     }
@@ -119,12 +125,12 @@ impl<'header> Response<'header> {
     pub fn text_plain(status_code: StatusCode, text: &str) -> Self {
         Response {
             status_code,
-            headers: vec![(CONTENT_TYPE, "text/plain")],
+            headers: vec![(CONTENT_TYPE.to_string(), "text/plain".to_string())],
             body_bytes: text.as_bytes().to_vec(),
         }
     }
 
-    pub fn see_other(path: &'header str) -> Result<Self, HttpError> {
+    pub fn see_other(path: &str) -> Result<Self, HttpError> {
         let mut response = Response::new(StatusCode::SeeOther, vec![]);
         response.add_header(LOCATION, path)?;
         Ok(response)

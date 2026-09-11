@@ -4,19 +4,19 @@ use life::http::{
     router::Router,
 };
 
-fn home<'a>(_: &'a Request<'_>, _: &mut ()) -> Response<'a> {
+fn home(_: &Request<'_>, _: &mut ()) -> Response {
     Response::html(StatusCode::Ok, "<h1>Home</h1>")
 }
 
-fn health<'a>(_: &'a Request<'_>, _: &mut ()) -> Response<'a> {
+fn health(_: &Request<'_>, _: &mut ()) -> Response {
     Response::html(StatusCode::Ok, "<h1>Healthy</h1>")
 }
 
-fn post_health<'a>(_: &'a Request<'_>, _: &mut ()) -> Response<'a> {
+fn post_health(_: &Request<'_>, _: &mut ()) -> Response {
     Response::html(StatusCode::Ok, "<h1>Posted Health</h1>")
 }
 
-fn form<'a>(_: &'a Request<'_>, _: &mut ()) -> Response<'a> {
+fn form(_: &Request<'_>, _: &mut ()) -> Response {
     Response::html(StatusCode::Ok, "<h1>Form</h1>")
 }
 
@@ -24,8 +24,52 @@ fn parse_ok(data: &[u8]) -> Request<'_> {
     Request::parse(data).expect("request should parse")
 }
 
-fn response_text(response: Response<'_>) -> String {
+fn response_text(response: Response) -> String {
     String::from_utf8(response.to_bytes()).expect("response should be valid UTF-8")
+}
+
+#[test]
+fn router_owns_route_names_after_registration_strings_are_dropped() {
+    let router = {
+        let route_name = String::from("/health");
+        let mut router = Router::new();
+        router.get(&route_name, health);
+        router.post(&route_name, post_health);
+        router
+    };
+    let mut state = ();
+
+    for (method, expected_body) in [
+        ("GET", "<h1>Healthy</h1>"),
+        ("POST", "<h1>Posted Health</h1>"),
+    ] {
+        let bytes =
+            format!("{method} /health HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n");
+        let request = parse_ok(bytes.as_bytes());
+        let response = response_text(router.handle_request(&request, &mut state));
+
+        assert!(response.starts_with("HTTP/1.1 200 OK\r\n"));
+        assert!(response.ends_with(expected_body));
+    }
+}
+
+#[test]
+fn router_owns_static_configuration_after_source_strings_are_dropped() {
+    let router = {
+        let prefix = String::from("/assets/");
+        let directory = String::from("./static");
+        let mut router = Router::new();
+        router.static_files(&prefix, &directory);
+        router
+    };
+    let mut state = ();
+    let request =
+        parse_ok(b"POST /assets/app.css HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n");
+
+    // Exercise the retained mount without depending on file-serving implementation.
+    let response = response_text(router.handle_request(&request, &mut state));
+
+    assert!(response.starts_with("HTTP/1.1 405 Method Not Allowed\r\n"));
 }
 
 #[test]

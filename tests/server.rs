@@ -15,7 +15,7 @@ use life::{
     server::Server,
 };
 
-fn hello_world<'a>(_: &'a Request<'_>, _: &mut ()) -> Response<'a> {
+fn hello_world(_: &Request<'_>, _: &mut ()) -> Response {
     Response::html(StatusCode::Ok, "<h1>HELLO WORLD</h1>")
 }
 

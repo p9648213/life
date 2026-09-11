@@ -10,12 +10,12 @@ use crate::http::{
     router::Router,
 };
 
-pub struct Server<'server, T> {
-    pub routes: Router<'server, T>,
+pub struct Server<T> {
+    pub routes: Router<T>,
     pub state: T,
 }
 
-impl<'server, T> Server<'server, T> {
+impl<T> Server<T> {
     pub fn new(state: T) -> Self {
         Self {
             routes: Router::new(),

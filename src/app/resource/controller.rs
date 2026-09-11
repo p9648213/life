@@ -10,10 +10,7 @@ use crate::{
     templates,
 };
 
-pub fn create_resourse<'buf, 'req>(
-    request: &'req Request<'buf>,
-    state: &mut State,
-) -> Response<'req> {
+pub fn create_resourse(request: &Request, state: &mut State) -> Response {
     match request.extract_form(["create_r_name", "create_r_number"]) {
         Ok([r_name, r_number]) => {
             let store = &state.store;
@@ -35,10 +32,7 @@ pub fn create_resourse<'buf, 'req>(
     }
 }
 
-pub fn delete_resourse<'buf, 'req>(
-    request: &'req Request<'buf>,
-    state: &mut State,
-) -> Response<'req> {
+pub fn delete_resourse(request: &Request, state: &mut State) -> Response {
     if let Ok([r_id]) = request.extract_form(["delete_r_id"]) {
         let store = &state.store;
         let mut resource_collection = match store.collection::<Resource>(RESOURCE_COLLECTION) {
@@ -61,10 +55,7 @@ pub fn delete_resourse<'buf, 'req>(
     }
 }
 
-pub fn update_resource<'buf, 'req>(
-    request: &'req Request<'buf>,
-    state: &mut State,
-) -> Response<'req> {
+pub fn update_resource(request: &Request, state: &mut State) -> Response {
     if let Ok([r_id, r_name, r_number]) =
         request.extract_form(["update_r_id", "update_r_name", "update_r_number"])
     {
@@ -97,10 +88,7 @@ pub fn update_resource<'buf, 'req>(
     }
 }
 
-pub fn list_resourse<'buf, 'req>(
-    request: &'req Request<'buf>,
-    state: &mut State,
-) -> Response<'req> {
+pub fn list_resourse(request: &Request, state: &mut State) -> Response {
     let id = match request.query().get("id") {
         Some(value) => match value.parse::<u32>() {
             Ok(id) if id > 0 => Some(id),
