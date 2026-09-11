@@ -43,13 +43,17 @@ fn router_passes_mutated_state_to_a_later_handler() {
 
 #[test]
 fn handler_response_outlives_request_buffer_and_state() {
-    fn respond(request: &Request<'_>, state: &mut String) -> Response {
+    struct HeaderState {
+        value: String,
+    }
+
+    fn respond(request: &Request<'_>, state: &mut HeaderState) -> Response {
         let mut response = Response::text_plain(StatusCode::Ok, request.path());
         response
             .add_header("X-Request-Path", request.path())
             .expect("request path should be a valid header value");
         response
-            .add_header("X-State", state)
+            .add_header("X-State", &state.value)
             .expect("state should be a valid header value");
         response
     }
@@ -57,7 +61,9 @@ fn handler_response_outlives_request_buffer_and_state() {
     let response = {
         let bytes = String::from("GET /owned HTTP/1.1\r\nHost: localhost\r\n\r\n");
         let request = parse_ok(bytes.as_bytes());
-        let mut state = String::from("ready");
+        let mut state = HeaderState {
+            value: String::from("ready"),
+        };
         let mut router = Router::new();
         router.get("/owned", respond);
         router.handle_request(&request, &mut state)

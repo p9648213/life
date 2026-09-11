@@ -57,10 +57,12 @@ impl<T> Router<T> {
     pub fn handle_request(&self, request: &Request, state: &mut T) -> Response {
         if let Some(static_prefix) = &self.static_prefix
             && let Some(static_dir) = &self.static_dir
-            && request.path().starts_with(static_prefix)
+            && let Some(asset_part) = str::strip_prefix(request.path(), static_prefix)
         {
             match request.method() {
-                HttpMethod::Get => return serve_static(static_dir),
+                HttpMethod::Get => {
+                    return serve_static(static_dir, asset_part);
+                }
                 HttpMethod::Post => return Response::new(StatusCode::MethodNotAllowed, vec![]),
             }
         }

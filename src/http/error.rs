@@ -18,6 +18,7 @@ pub enum HttpError {
     FormParseError,
     FormMissingField(String),
     FormFieldMissingName,
+    InvalidAssetPart,
 }
 
 impl From<Utf8Error> for HttpError {
@@ -72,6 +73,9 @@ impl fmt::Display for HttpError {
             }
             HttpError::FormFieldMissingName => {
                 write!(f, "Form Field Missing Name")
+            }
+            HttpError::InvalidAssetPart => {
+                write!(f, "Invalid asset part")
             }
         }
     }
