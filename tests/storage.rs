@@ -2022,3 +2022,65 @@ fn deleted_id_index_offset_inside_live_payload_is_rejected_on_reopen() {
 fn deleted_id_index_offset_to_another_live_record_is_rejected_on_reopen() {
     assert_deleted_index_target_is_rejected(|_, survivor_offset| survivor_offset);
 }
+
+#[test]
+fn find_one_rejects_deleted_id_without_mutating_files() {
+    let directory = TestDirectory::new();
+    let name = "find_deleted";
+    let store = create_collection(&directory, name);
+    let mut collection = store.collection::<TestRecord>(name).unwrap();
+    collection.insert_one(TestRecord::new("one", 1)).unwrap();
+    assert_eq!(collection.find_one(1).unwrap().id, 1);
+    collection.delete_one(1).unwrap();
+
+    let store_bytes = fs::read(directory.store_path(name)).unwrap();
+    let index_bytes = fs::read(directory.index_path(name)).unwrap();
+    let offset_start = INDEX_HEADER_TOTAL_BYTES + 4;
+    assert_eq!(&index_bytes[offset_start..offset_start + 8], &[0u8; 8]);
+
+    let result = collection.find_one(1);
+    assert!(
+        matches!(result, Err(StoreError::StorageIndexIdNotFound)),
+        "a cleared index offset must mean ID not found, got {result:?}"
+    );
+    assert_eq!(fs::read(directory.store_path(name)).unwrap(), store_bytes);
+    assert_eq!(fs::read(directory.index_path(name)).unwrap(), index_bytes);
+}
+
+#[test]
+fn find_one_rejects_index_pointing_to_another_record_without_mutating_files() {
+    let directory = TestDirectory::new();
+    let name = "find_wrong_id";
+    let store = create_collection(&directory, name);
+    let mut collection = store.collection::<TestRecord>(name).unwrap();
+    collection.insert_one(TestRecord::new("one", 1)).unwrap();
+    collection.insert_one(TestRecord::new("two", 2)).unwrap();
+    assert_eq!(collection.find_one(1).unwrap().id, 1);
+    assert_eq!(collection.find_one(2).unwrap().id, 2);
+
+    let store_bytes = fs::read(directory.store_path(name)).unwrap();
+    let index_path = directory.index_path(name);
+    let mut index_bytes = fs::read(&index_path).unwrap();
+    let second_entry = INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN;
+    let second_offset: [u8; 8] = index_bytes[second_entry + 4..second_entry + INDEX_RECORD_LEN]
+        .try_into()
+        .unwrap();
+    // Preserve slot 1's ID, but point it at record 2's valid live frame.
+    index_bytes[INDEX_HEADER_TOTAL_BYTES + 4..INDEX_HEADER_TOTAL_BYTES + INDEX_RECORD_LEN]
+        .copy_from_slice(&second_offset);
+    fs::write(&index_path, &index_bytes).unwrap();
+
+    let result = collection.find_one(1);
+    assert!(
+        matches!(
+            result,
+            Err(StoreError::IndexRecordIdMismatch {
+                expected_id: 1,
+                actual_id: 2,
+            })
+        ),
+        "lookup must reject record 2 when ID 1 was requested, got {result:?}"
+    );
+    assert_eq!(fs::read(directory.store_path(name)).unwrap(), store_bytes);
+    assert_eq!(fs::read(index_path).unwrap(), index_bytes);
+}

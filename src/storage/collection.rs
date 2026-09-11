@@ -350,6 +350,54 @@ impl<T> Colection<T> {
         Ok(())
     }
 
+    pub fn find_one(&mut self, id: u32) -> Result<T, StoreError>
+    where
+        T: Decode + HasId,
+    {
+        self.check_collection_header()?;
+        let mut f = &self.store_file;
+        let file_len = f.metadata()?.len();
+        let offset = self.find_id_offset(id)?;
+        if offset == 0 {
+            return Err(StoreError::StorageIndexIdNotFound);
+        }
+        f.seek(SeekFrom::Start(offset))?;
+        let mut flag_buf = [0u8; 1];
+        let mut payload_len_buf = [0u8; 4];
+        f.read_exact(&mut flag_buf)?;
+        f.read_exact(&mut payload_len_buf)?;
+        let flag = u8::from_be_bytes(flag_buf);
+        let payload_len = u32::from_be_bytes(payload_len_buf);
+        if flag == 0 {
+            Err(StoreError::StorageIndexDeleted)
+        } else if flag == 1 {
+            let payload_start = f.stream_position()?;
+            let remaining = file_len
+                .checked_sub(payload_start)
+                .ok_or(StoreError::TruncatedFrame)?;
+            if payload_len as u64 > remaining {
+                return Err(StoreError::TruncatedFrame);
+            }
+            let mut payload_buf = vec![0u8; payload_len as usize];
+            f.read_exact(&mut payload_buf)?;
+            let mut decoder = Decoder::new(&payload_buf);
+            let item = T::decode(&mut decoder)?;
+            if !decoder.bytes.is_empty() {
+                return Err(StoreError::TrailingBytesInPayload);
+            }
+            let item_id = item.id();
+            if item_id != id {
+                return Err(StoreError::IndexRecordIdMismatch {
+                    expected_id: id,
+                    actual_id: item_id,
+                });
+            }
+            Ok(item)
+        } else {
+            Err(StoreError::InvalidFrameFlag(flag))
+        }
+    }
+
     pub fn list(&mut self) -> Result<Vec<T>, StoreError>
     where
         T: Decode + HasId,
@@ -389,12 +437,12 @@ impl<T> Colection<T> {
                 }
                 Err(err) => return Err(StoreError::IoError(err)),
             };
-            let len = u32::from_be_bytes(len_buf) as usize;
+            let len = u32::from_be_bytes(len_buf);
             let payload_start = reader.stream_position()?;
             let remaining = file_len
                 .checked_sub(payload_start)
                 .ok_or(StoreError::TruncatedFrame)?;
-            if len > remaining as usize {
+            if len as u64 > remaining {
                 return Err(StoreError::TruncatedFrame);
             }
             if flag == 0 {
@@ -402,9 +450,9 @@ impl<T> Colection<T> {
                 reader.seek(SeekFrom::Current(len as i64))?;
             } else if flag == 1 {
                 let record_offset = payload_start - 5;
-                let mut payload = vec![0u8; len];
-                reader.read_exact(&mut payload)?;
-                let mut decoder = Decoder::new(&payload);
+                let mut payload_buf = vec![0u8; len as usize];
+                reader.read_exact(&mut payload_buf)?;
+                let mut decoder = Decoder::new(&payload_buf);
                 let item = T::decode(&mut decoder)?;
                 if !decoder.bytes.is_empty() {
                     return Err(StoreError::TrailingBytesInPayload);
