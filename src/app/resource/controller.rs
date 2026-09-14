@@ -89,6 +89,8 @@ pub fn update_resource(request: &Request, state: &mut State) -> Response {
 }
 
 pub fn list_resourse(request: &Request, state: &mut State) -> Response {
+    let cookie = request.cookie_map();
+    println!("{:#?}", cookie);
     let id = match request.query().get("id") {
         Some(value) => match value.parse::<u32>() {
             Ok(id) if id > 0 => Some(id),
