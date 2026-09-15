@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     constant::{CONTENT_LENGTH, CONTENT_TYPE, FORM_CONTENT_TYPE},
-    http::{cookie::Cookie, error::HttpError},
+    http::{cookie::parse_cookie, error::HttpError},
     util::decode_form,
 };
 
@@ -270,7 +270,7 @@ impl<'buf> Request<'buf> {
 
     pub fn cookie_map(&self) -> HashMap<String, String> {
         if let Some(cookie) = self.get_header("Cookie") {
-            Cookie::parse(cookie)
+            parse_cookie(cookie)
         } else {
             HashMap::new()
         }
