@@ -182,7 +182,7 @@ impl<'buf> Request<'buf> {
         headers_map: &mut HashMap<String, &'buf str>,
     ) -> Result<(), HttpError> {
         if let Some((name, value)) = header.split_once(":") {
-            let value = value.trim();
+            let value = value.trim_matches([' ', '\t']);
             if name.is_empty() || name.contains(' ') {
                 return Err(HttpError::RequestHeaderInvalid);
             }
@@ -268,11 +268,11 @@ impl<'buf> Request<'buf> {
         Ok(values.try_into().unwrap())
     }
 
-    pub fn cookie_map(&self) -> HashMap<String, String> {
+    pub fn extract_cookie(&self) -> Result<Vec<(&str, &str)>, HttpError> {
         if let Some(cookie) = self.get_header("Cookie") {
             parse_cookie(cookie)
         } else {
-            HashMap::new()
+            Ok(Vec::new())
         }
     }
 }

@@ -19,6 +19,7 @@ pub enum HttpError {
     FormMissingField(String),
     FormFieldMissingName,
     InvalidAssetPart,
+    InvalidCookie,
 }
 
 impl From<Utf8Error> for HttpError {
@@ -76,6 +77,9 @@ impl fmt::Display for HttpError {
             }
             HttpError::InvalidAssetPart => {
                 write!(f, "Invalid asset part")
+            }
+            HttpError::InvalidCookie => {
+                write!(f, "Invalid cookie")
             }
         }
     }

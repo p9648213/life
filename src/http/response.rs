@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     constant::{CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, LOCATION, TRANSFER_ENCODING},
     http::error::HttpError,
