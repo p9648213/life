@@ -13,7 +13,7 @@ Current status:
 
 Main target:
 
-- HTTP/1.1 server using `std::net`
+- HTTP/1.1 server starting with `std::net`, with async I/O deferred to Phase 15B
 - Manual request parsing
 - Manual response generation
 - Router and handler boundary
@@ -70,6 +70,8 @@ Useful official references:
 
 Phase 05B is an optional, repeatable continuation. It does not block Phase 06A; return to it only when a concrete template requires another compiler capability.
 
+Phase 15A establishes bounded thread-based concurrency. Phase 15B adds async I/O later and does not block Phase 16 or subsequent phases.
+
 1. [Project Setup](phases/00-project-setup.md)
 2. [TCP Server](phases/01-tcp-server.md)
 3. [HTTP Response Builder](phases/02-http-response-builder.md)
@@ -90,7 +92,8 @@ Phase 05B is an optional, repeatable continuation. It does not block Phase 06A; 
 15. [Sessions](phases/12-sessions.md)
 16. [Passwords and Authentication](phases/13-passwords-authentication.md)
 17. [Error Handling](phases/14-error-handling.md)
-18. [Concurrency](phases/15-concurrency.md)
+18. [Phase 15A: Thread-Based Concurrency](phases/15a-thread-based-concurrency.md)
+    - [Phase 15B: Async I/O (Deferred)](phases/15b-async-io.md)
 19. [Better HTTP Behavior](phases/16-better-http-behavior.md)
 20. [Testing](phases/17-testing.md)
 21. [Database Layer](phases/18-database-layer.md)

@@ -69,6 +69,8 @@ By the end of this milestone, bad client input should become a reasonable HTTP r
 
 ### Milestone C: Serious Request Handling
 
+Phase 15A introduces bounded thread-based concurrency, deadlines, and safe shared-state access. Keep connection I/O and request processing separate from worker scheduling. Phase 15B is a deferred async I/O track that preserves these guarantees; it does not block Phase 16 or later phases.
+
 Harden the provisional Phase 06A read loop with request size limits, body limits, timeout behavior, `Host` handling, duplicate header policy, and connection-close rules.
 
 This is where the temporary total-request capacity and one-request connection behavior become deliberate protocol policies. Phase 06A removes the immediate single-read failure; this milestone makes that reader substantially less fragile.

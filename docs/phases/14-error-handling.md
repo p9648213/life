@@ -33,4 +33,4 @@ Invalid client input produces an appropriate client-error response, internal fai
 
 You are done when expected errors have consistent status mappings, internal failures are diagnosable server-side, and client responses do not expose sensitive details.
 
-After this, continue with [Phase 15: Concurrency](15-concurrency.md).
+After this, continue with [Phase 15A: Thread-Based Concurrency](15a-thread-based-concurrency.md).
