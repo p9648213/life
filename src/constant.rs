@@ -27,6 +27,7 @@ pub const STORAGE_PAYLOAD_FRAME_OFF: &[u8] = &[0b0000_0000];
 pub const STORAGE_PAYLOAD_FLAG_SIZE: usize = size_of::<u8>();
 pub const STORAGE_PAYLOAD_LEN_SIZE: usize = size_of::<u32>();
 pub const RESOURCE_COLLECTION: &str = "resource";
+pub const USER_COLLECTION: &str = "user";
 pub const COLLECTION_EXTENSION: &str = "store";
 
 // STORAGE INDEX

@@ -5,10 +5,21 @@ use crate::storage::{
 };
 
 pub struct User {
-    id: u32,
-    username: String,
-    password: String,
-    session: String,
+    pub id: u32,
+    pub username: String,
+    pub password: String,
+    pub session: String,
+}
+
+impl User {
+    pub fn new(username: String, password: String, session: String) -> Self {
+        Self {
+            id: 0,
+            username,
+            password,
+            session,
+        }
+    }
 }
 
 impl Encode for User {

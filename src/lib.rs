@@ -1,3 +1,4 @@
+#![feature(random)]
 pub mod app;
 pub mod constant;
 pub mod http;

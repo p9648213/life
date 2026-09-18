@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use life::{
-    constant::{RESOURCE_COLLECTION, STORAGE_FOLDER},
+    constant::{RESOURCE_COLLECTION, STORAGE_FOLDER, USER_COLLECTION},
     route::create_routes,
     server::Server,
     state::State,
@@ -9,7 +11,11 @@ use life::{
 fn main() -> std::io::Result<()> {
     let store = Store::connect(STORAGE_FOLDER).map_err(std::io::Error::other)?;
     store.create_collection(RESOURCE_COLLECTION)?;
-    let state = State { store };
+    store.create_collection(USER_COLLECTION)?;
+    let state = State {
+        store,
+        session: HashMap::new(),
+    };
     let mut server = Server::new(state);
     create_routes(&mut server);
     server.run("127.0.0.1:8080")
