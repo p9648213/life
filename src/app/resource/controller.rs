@@ -89,6 +89,14 @@ pub fn update_resource(request: &Request, state: &mut State) -> Response {
 }
 
 pub fn list_resourse(request: &Request, state: &mut State) -> Response {
+    if request.get_cookie_value("session").is_none() {
+        match Response::see_other("/login") {
+            Ok(response) => return response,
+            Err(err) => {
+                return Response::text_plain(StatusCode::InternalServerError, &err.to_string());
+            }
+        }
+    }
     let id = match request.query().get("id") {
         Some(value) => match value.parse::<u32>() {
             Ok(id) if id > 0 => Some(id),

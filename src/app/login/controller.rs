@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     app::login::model::User,
     constant::{SET_COOKIE, USER_COLLECTION},
@@ -163,4 +165,13 @@ pub fn register(request: &Request, state: &mut State) -> Response {
             Err(err) => Response::text_plain(StatusCode::InternalServerError, &err.to_string()),
         },
     }
+}
+
+pub fn logout(_request: &Request, _state: &mut State) -> Response {
+    let mut response = Response::new(StatusCode::NoContent, vec![]);
+    let mut cookie = Cookie::new();
+    cookie.set_name_value("session", "").unwrap();
+    cookie.set_max_age(Duration::from_secs(0));
+    response.add_header(SET_COOKIE, &cookie.build()).unwrap();
+    response
 }

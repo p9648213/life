@@ -16,6 +16,7 @@ pub enum StatusCode {
     InternalServerError,
     SeeOther,
     MethodNotAllowed,
+    NoContent,
 }
 
 impl StatusCode {
@@ -27,6 +28,7 @@ impl StatusCode {
             Self::InternalServerError => 500,
             Self::SeeOther => 303,
             Self::MethodNotAllowed => 405,
+            Self::NoContent => 204,
         }
     }
 
@@ -38,6 +40,7 @@ impl StatusCode {
             Self::InternalServerError => "Internal Server Error",
             Self::SeeOther => "See Other",
             Self::MethodNotAllowed => "Method Not Allowed",
+            Self::NoContent => "No Content",
         }
     }
 }
