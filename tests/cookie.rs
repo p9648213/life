@@ -147,7 +147,8 @@ fn accepts_spaces_and_tabs_around_incoming_cookie_names_and_values() {
 
     let raw = format!("GET / HTTP/1.1\r\nHost: localhost\r\nCookie:{input}\r\n\r\n");
     let request = Request::parse(raw.as_bytes()).unwrap();
-    assert_eq!(request.extract_cookie().outcome().unwrap(), expected);
+    assert_eq!(request.get_cookie_value("theme"), Some("dark".to_owned()));
+    assert_eq!(request.get_cookie_value("empty"), Some(String::new()));
 }
 
 #[test]
@@ -182,7 +183,7 @@ fn request_header_trimming_does_not_hide_invalid_cookie_whitespace() {
             // Either the header parser or cookie validation may reject it.
             if let Ok(request) = Request::parse(raw.as_bytes()) {
                 assert!(
-                    request.extract_cookie().outcome().is_err(),
+                    request.get_cookie_value("theme").is_none(),
                     "request accepted invalid cookie value {value:?}"
                 );
             }
@@ -200,14 +201,11 @@ fn preserves_duplicate_incoming_names_even_when_values_match() {
 }
 
 #[test]
-fn request_cookie_access_preserves_duplicate_names() {
+fn request_cookie_access_returns_first_duplicate_value() {
     let raw =
         b"GET /account HTTP/1.1\r\nHost: localhost\r\nCookie: theme=light; theme=dark\r\n\r\n";
     let request = Request::parse(raw).unwrap();
-    assert_eq!(
-        request.extract_cookie().outcome().unwrap(),
-        vec![("theme", "light"), ("theme", "dark")]
-    );
+    assert_eq!(request.get_cookie_value("theme"), Some("light".to_owned()));
 }
 
 #[test]
@@ -218,18 +216,59 @@ fn rejects_unsupported_incoming_name_characters() {
 }
 
 #[test]
-fn request_cookie_access_propagates_malformed_input() {
-    let raw = b"GET / HTTP/1.1\r\nHost: localhost\r\nCookie: theme=dark; broken\r\n\r\n";
-    // Eager validation during Request::parse and lazy cookie validation are both valid.
-    if let Ok(request) = Request::parse(raw) {
-        assert!(request.extract_cookie().outcome().is_err());
+fn request_cookie_access_returns_none_for_malformed_input() {
+    for input in [
+        "theme=dark; broken",
+        "broken; theme=dark",
+        "theme=dark; =empty",
+        "theme=dark;",
+        "theme=dark;; other=value",
+        "",
+    ] {
+        let raw = format!("GET / HTTP/1.1\r\nHost: localhost\r\nCookie: {input}\r\n\r\n");
+        let request = Request::parse(raw.as_bytes()).unwrap();
+        assert_eq!(
+            request.get_cookie_value("theme"),
+            None,
+            "accepted {input:?}"
+        );
     }
 }
 
 #[test]
-fn missing_cookie_header_returns_empty_pairs() {
+fn missing_cookie_header_returns_none() {
     let request = Request::parse(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
-    assert!(request.extract_cookie().outcome().unwrap().is_empty());
+    assert_eq!(request.get_cookie_value("theme"), None);
+}
+
+#[test]
+fn request_cookie_access_matches_names_exactly_and_preserves_literal_values() {
+    let raw = b"GET / HTTP/1.1\r\nHost: localhost\r\nCookie: theme=dark; Theme=light; token=abc==+%2F; empty=\r\n\r\n";
+    let request = Request::parse(raw).unwrap();
+    for (key, expected) in [
+        ("theme", Some("dark")),
+        ("Theme", Some("light")),
+        ("token", Some("abc==+%2F")),
+        ("empty", Some("")),
+        ("missing", None),
+        ("THEME", None),
+        ("the", None),
+        ("", None),
+    ] {
+        assert_eq!(
+            request.get_cookie_value(key).as_deref(),
+            expected,
+            "key {key:?}"
+        );
+    }
+}
+
+#[test]
+fn request_cookie_access_uses_last_cookie_header_case_insensitively() {
+    let raw = b"GET / HTTP/1.1\r\nHost: localhost\r\nCookie: theme=light; old=value\r\ncOoKiE: theme=dark\r\n\r\n";
+    let request = Request::parse(raw).unwrap();
+    assert_eq!(request.get_cookie_value("theme"), Some("dark".to_owned()));
+    assert_eq!(request.get_cookie_value("old"), None);
 }
 
 #[test]

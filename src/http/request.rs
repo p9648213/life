@@ -268,11 +268,23 @@ impl<'buf> Request<'buf> {
         Ok(values.try_into().unwrap())
     }
 
-    pub fn extract_cookie(&self) -> Result<Vec<(&str, &str)>, HttpError> {
-        if let Some(cookie) = self.get_header("Cookie") {
-            parse_cookie(cookie)
+    fn extract_cookie(&self) -> Vec<(&str, &str)> {
+        if let Some(cookie) = self.get_header("Cookie")
+            && let Ok(cookie_map) = parse_cookie(cookie)
+        {
+            cookie_map
         } else {
-            Ok(Vec::new())
+            Vec::new()
         }
+    }
+
+    pub fn get_cookie_value(&self, key: &str) -> Option<String> {
+        let cookies = self.extract_cookie();
+        for (k, v) in cookies {
+            if key == k {
+                return Some(v.to_string());
+            }
+        }
+        None
     }
 }

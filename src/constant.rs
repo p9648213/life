@@ -5,6 +5,7 @@ pub const MAX_ASSET_SIZE: usize = 10 * 1024;
 pub const CONTENT_LENGTH: &str = "Content-Length";
 pub const CONTENT_TYPE: &str = "Content-Type";
 pub const LOCATION: &str = "Location";
+pub const SET_COOKIE: &str = "Set-Cookie";
 pub const TRANSFER_ENCODING: &str = "Transfer-Encoding";
 pub const CONNECTION: &str = "Connection";
 pub const FORM_CONTENT_TYPE: &str = "application/x-www-form-urlencoded";

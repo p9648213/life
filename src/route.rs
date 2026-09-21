@@ -1,6 +1,6 @@
 use crate::{
     app::{
-        login::controller::login,
+        login::controller::{login, register},
         resource::controller::{create_resourse, delete_resourse, list_resourse, update_resource},
     },
     server::Server,
@@ -8,8 +8,10 @@ use crate::{
 };
 
 pub fn create_routes(server: &mut Server<State>) {
-    server.routes.get("/", login);
-    server.routes.post("/", login);
+    server.routes.get("/login", login);
+    server.routes.post("/login", login);
+    server.routes.get("/register", register);
+    server.routes.post("/register", register);
     server.routes.post("/resources/create", create_resourse);
     server.routes.post("/resources/delete", delete_resourse);
     server.routes.post("/resources/update", update_resource);

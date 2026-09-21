@@ -3,9 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Log in</title>
+    <link rel="stylesheet" href="/static/css/login.css">
 </head>
 <body>
-    <h1>Login Page</h1>
+    <main class="auth-card">
+        <header>
+            <h1>Welcome back</h1>
+            <p>Log in to continue to your resources.</p>
+        </header>
+        <form method="POST" action="/login">
+            <div class="field">
+                <label for="username">Username</label>
+                <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <button type="submit">Log in</button>
+        </form>
+        <p class="auth-footer">New here? <a href="/register">Create an account</a></p>
+    </main>
 </body>
 </html>

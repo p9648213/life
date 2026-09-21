@@ -7,6 +7,7 @@ pub mod server;
 pub mod state;
 pub mod storage;
 pub mod util;
+pub mod sha256;
 pub mod templates {
     include!(concat!(env!("OUT_DIR"), "/templates.rs"));
 }
