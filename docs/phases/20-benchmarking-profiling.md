@@ -1,4 +1,4 @@
-# Phase 23: Benchmarking and Profiling
+# Phase 20: Benchmarking and Profiling
 
 Goal: make performance decisions from repeatable measurements.
 
@@ -33,4 +33,4 @@ You can reproduce release-mode measurements for a simple route, a parsed-body ro
 
 You are done when one performance decision is supported by saved, repeatable evidence and no correctness invariant was traded away silently.
 
-After this, continue with [Phase 24: Backend Core API Boundary](24-backend-core-api-boundary.md).
+After this, continue with [Phase 21: Backend Core API Boundary](21-backend-core-api-boundary.md).

@@ -1,4 +1,4 @@
-use life::util::escape_html;
+use htmlc::util::escape_html;
 
 #[test]
 fn escape_html_appends_all_text_escapes_to_the_existing_buffer() {

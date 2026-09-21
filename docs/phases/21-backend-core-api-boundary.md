@@ -1,4 +1,4 @@
-# Phase 24: Backend Core API Boundary
+# Phase 21: Backend Core API Boundary
 
 Goal: make application code depend on a small, explicit backend-core API.
 
@@ -33,4 +33,4 @@ A small application can register routes, receive requests and application contex
 
 You are done when the backend core has a small public surface, application-specific code is easy to identify, and control flow remains explicit.
 
-After this, continue with [Phase 25: Security and Deployment Boundary](25-security-deployment-boundary.md).
+After this, continue with [Phase 22: Security and Deployment Boundary](22-security-deployment-boundary.md).

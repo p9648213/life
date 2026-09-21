@@ -1,4 +1,4 @@
-# Phase 17: Testing
+# Phase 14: Testing
 
 Goal: make the backend safe to change through deterministic automated tests.
 
@@ -6,7 +6,7 @@ Design the test layout and helpers yourself.
 
 ## Expected Behavior
 
-`cargo test` verifies the important HTTP, application, persistence, and concurrency contracts without requiring every test to use a real socket or browser.
+`cargo test` verifies the important HTTP, handler-boundary, persistence, and concurrency contracts without requiring every test to use a real socket or browser.
 
 ## Requirements
 
@@ -27,7 +27,6 @@ Design the test layout and helpers yourself.
 - routing distinguishes path and method outcomes;
 - form decoding and HTML escaping cover boundary inputs;
 - storage round-trips and rejects corruption;
-- session and authentication invariants hold;
 - concurrent mutations preserve state;
 - configured limits work at just-below, exact, and just-above boundaries.
 
@@ -35,4 +34,4 @@ Design the test layout and helpers yourself.
 
 You are done when the critical contracts have deterministic regression coverage and failures identify the responsible boundary clearly.
 
-After this, continue with [Phase 18: Database Layer](18-database-layer.md).
+After this, continue with [Phase 15: Database Layer](15-database-layer.md).

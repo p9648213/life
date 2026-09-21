@@ -79,7 +79,7 @@ fn generate_r(tokens: &[Token], fn_name: &str, struct_name: &str) -> String {
             Token::Variable(name, escape) => {
                 if *escape {
                     function_body
-                        .push_str(&format!("crate::util::escape_html(view.{}, out);", name));
+                        .push_str(&format!("::htmlc::util::escape_html(view.{}, out);", name));
                 } else {
                     function_body.push_str(&format!("out.push_str(view.{});", name));
                 }

@@ -2,7 +2,7 @@
 
 ## Overall
 
-Phase 11 is complete for the [agreed cookie subset](../phases/11-cookies.md). You are ready for [Phase 12: Sessions](../phases/12-sessions.md). This is a learning checkpoint, not a production-readiness assessment.
+Phase 11 is complete for the [agreed cookie subset](../phases/11-cookies.md). You are ready for [Phase 12A: Thread-Based Concurrency](../phases/12a-thread-based-concurrency.md). This is a learning checkpoint, not a production-readiness assessment.
 
 ## What Works Well
 
@@ -35,6 +35,6 @@ Cookie parsing takes O(n) time and O(k) extra memory for k pairs. Each byte is e
 
 A review probe with 1,048,574 bytes and 349,525 pairs took about 71 ms in a debug build. Vector capacity used 16 MiB on the review machine, excluding the input and other request allocations. This is a single observation, not a benchmark guarantee. Revisit total per-request memory when changing the 1 MiB request limit or adding concurrency; no quadratic parsing path was found.
 
-For Phase 12, decide how session lookup handles multiple values for the session cookie name. Keep that decision in the session boundary. Use a proven cryptographically secure randomness source for opaque IDs, bound retained session state, and define expiration and logout behavior.
+Applications using the library decide how to interpret duplicate cookie names. Session management and authentication belong to that application layer. Next, Phase 12A adds bounded thread-based concurrency.
 
 The temporary test adapter can be simplified once the public APIs settle. Further allocation tuning should follow measurement rather than delaying the next phase.

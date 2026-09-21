@@ -2,7 +2,7 @@
 
 Goal: improve one measured file-storage bottleneck while preserving the Phase 09A format and mutation behavior plus the Phase 09B storage limits.
 
-This is an optional, repeatable optimization phase. It does not block Phase 10. Enter it after [Phase 23: Benchmarking and Profiling](23-benchmarking-profiling.md), or earlier only when a reproducible storage benchmark already demonstrates a concrete problem.
+This is an optional, repeatable optimization phase. It does not block Phase 10. Enter it after [Phase 20: Benchmarking and Profiling](20-benchmarking-profiling.md), or earlier only when a reproducible storage benchmark already demonstrates a concrete problem.
 
 ## Expected Behavior
 

@@ -224,7 +224,7 @@ fn applies_escape_operation_per_variable_occurrence() {
         .expect("valid template should compile");
 
     assert!(
-        code.contains("crate::util::escape_html(view.value, out);"),
+        code.contains("::htmlc::util::escape_html(view.value, out);"),
         "the escape operation must write the escaped value into the output buffer: {code}"
     );
     assert!(
@@ -244,7 +244,7 @@ fn repeated_escape_operation_generates_one_escape_call() {
         .expect("repeating the escape operation is valid");
 
     assert_eq!(
-        code.matches("crate::util::escape_html(view.value, out);")
+        code.matches("::htmlc::util::escape_html(view.value, out);")
             .count(),
         1,
         "repeating :escape must still generate exactly one escape call: {code}"

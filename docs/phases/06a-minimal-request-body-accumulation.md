@@ -2,7 +2,7 @@
 
 Goal: accumulate one complete HTTP request before parsing it, even when TCP delivers the request across multiple reads.
 
-This phase fixes only the immediate single-read limitation that blocks browser form submissions. It deliberately handles one request per connection and closes the connection after the response. It does not try to implement production-grade connection handling. Phase 16 will harden this reader with deliberate limits, timeouts, and a fuller connection policy.
+This phase fixes only the immediate single-read limitation that blocks browser form submissions. It deliberately handles one request per connection and closes the connection after the response. It does not try to implement production-grade connection handling. Phase 13 will harden this reader with deliberate limits, timeouts, and a fuller connection policy.
 
 ## Why This Phase Exists
 
@@ -57,7 +57,7 @@ A larger buffer does not solve this. Buffer capacity controls how many bytes can
 - The existing parser, router, handler, and response flow
 - A temporary total-request capacity so accumulation is not unbounded
 
-## Deferred to Phase 16
+## Deferred to Phase 13
 
 - Separate configurable header, body, and total-request limits
 - Slow-client protection and read timeouts
@@ -287,7 +287,7 @@ Possible cause:
 - Why is EOF different from temporarily having no bytes available?
 - Why can `read_to_end` deadlock with a keep-alive client?
 - Why should the connection reader avoid decoding form fields?
-- Which parts of request reading remain deliberately unfinished until Phase 16?
+- Which parts of request reading remain deliberately unfinished until Phase 13?
 
 ## Checkpoint
 

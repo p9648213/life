@@ -1,4 +1,4 @@
-# Phase 16: Better HTTP Behavior
+# Phase 13: Better HTTP Behavior
 
 Goal: harden request framing and connection behavior without attempting all of HTTP.
 
@@ -11,6 +11,8 @@ Fragmented valid requests within configured limits still work. Oversized, ambigu
 ## Requirements
 
 - Enforce separate header, body, and total-request limits.
+- Define and test HTTP error mappings: malformed supported input returns `400`, missing routes `404`, unsupported methods on known routes `405`, oversized bodies `413`, unsupported or missing required body media types `415`, and unexpected internal failures `500`.
+- Keep internal details out of client error responses; expected failures must not panic or appear successful.
 - Reject an oversized body from `Content-Length` before deliberately reading more body bytes.
 - Once total length is known, bound each read by the remaining request bytes.
 - Append only bytes actually returned by `read`.
@@ -27,6 +29,7 @@ Fragmented valid requests within configured limits still work. Oversized, ambigu
 
 ## Tests to Write
 
+- HTTP failures return the documented status without leaking internal details;
 - fragmented requests within limits succeed;
 - oversized headers and bodies fail promptly;
 - a short final read succeeds;
@@ -41,4 +44,4 @@ Fragmented valid requests within configured limits still work. Oversized, ambigu
 
 You are done when framing rules, limits, timeouts, and surplus-byte behavior are explicit, consistent across layers, and covered by boundary tests.
 
-After this, continue with [Phase 17: Testing](17-testing.md).
+After this, continue with [Phase 14: Testing](14-testing.md).

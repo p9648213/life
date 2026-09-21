@@ -1,4 +1,4 @@
-# Phase 19: JSON API
+# Phase 16: JSON API
 
 Goal: add a machine-readable adapter alongside the HTML application.
 
@@ -34,4 +34,4 @@ API routes can list and create resources as JSON while existing HTML routes cont
 
 You are done when HTML and JSON adapters share application rules, all API responses are valid JSON, and invalid input receives a stable error shape.
 
-After this, continue with [Phase 20: Frontend Interactivity Adapter](20-frontend-interactivity.md).
+After this, continue with [Phase 17: Frontend Interactivity Adapter](17-frontend-interactivity.md).

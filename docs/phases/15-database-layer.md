@@ -1,4 +1,4 @@
-# Phase 18: Database Layer
+# Phase 15: Database Layer
 
 Goal: replace file persistence with a database-backed storage adapter.
 
@@ -34,4 +34,4 @@ Application behavior remains the same while records persist in SQLite through ex
 
 You are done when SQLite persists the application correctly, migrations are repeatable, and storage can change without altering the HTTP core.
 
-After this, continue with [Phase 19: JSON API](19-json-api.md).
+After this, continue with [Phase 16: JSON API](16-json-api.md).

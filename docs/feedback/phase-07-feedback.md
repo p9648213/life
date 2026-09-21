@@ -37,7 +37,7 @@ I verified that:
 - You changed `handle_client` and `run` to borrow the server mutably, matching the fact that request handling may mutate server-owned application state.
 - You kept `Server` and `Router` independent of the temporary resource type by making both generic.
 - You create the state once in `main`, so every accepted connection handled by that server instance reaches the same value.
-- You preserved the single-threaded model. Exclusive `&mut T` access is sufficient here; synchronization belongs in Phase 15.
+- You preserved the single-threaded model. Exclusive `&mut T` access is sufficient here; synchronization belongs in Phase 12A.
 - You repaired the older routing and server tests after changing the handler API instead of leaving stale tests behind.
 - You added a focused state test that exercises the real router-to-handler boundary without depending on TCP timing or socket permissions.
 
@@ -45,9 +45,9 @@ I verified that:
 
 - `Server` currently exposes both `routes` and `state` publicly. This keeps the learning flow easy to inspect. A later API-boundary phase can decide whether registration and state access should be encapsulated.
 - The router stores function pointers. That is small and explicit for the current backend. Revisit the handler representation only when closures, captured dependencies, middleware, or another concrete requirement makes function pointers insufficient.
-- The temporary `State` type contains the resource demonstration data inside the library crate. The generic backend does not depend on it, so it can move into a clearer application layer when Phase 24 formalizes the backend-core boundary.
+- The temporary `State` type contains the resource demonstration data inside the library crate. The generic backend does not depend on it, so it can move into a clearer application layer when Phase 21 formalizes the backend-core boundary.
 - State exists only in process memory. Phase 09 should add loading and saving while preserving the ownership path established here.
-- Do not add `Arc`, `Mutex`, or concurrent mutation behavior early. Phase 15 should introduce synchronization together with a deliberate concurrency model and concurrent tests.
+- Do not add `Arc`, `Mutex`, or concurrent mutation behavior early. Phase 12A should introduce synchronization together with a deliberate concurrency model and concurrent tests.
 
 ## Ready For Phase 08
 

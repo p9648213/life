@@ -1,4 +1,4 @@
-# Phase 22: Observability and Diagnostics
+# Phase 19: Observability and Diagnostics
 
 Goal: make request behavior diagnosable without exposing private data.
 
@@ -33,4 +33,4 @@ One request can be traced from acceptance to response using a request ID, status
 
 You are done when failures can be traced server-side, basic traffic can be counted, and diagnostic output has an explicit privacy boundary.
 
-After this, continue with [Phase 23: Benchmarking and Profiling](23-benchmarking-profiling.md).
+After this, continue with [Phase 20: Benchmarking and Profiling](20-benchmarking-profiling.md).

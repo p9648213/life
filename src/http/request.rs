@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     constant::{CONTENT_LENGTH, CONTENT_TYPE, FORM_CONTENT_TYPE},
-    http::{cookie::parse_cookie, error::HttpError},
-    util::decode_form,
+    http::{cookie::parse_cookie, error::HttpError, util::decode_form},
 };
 
 #[derive(Debug, PartialEq)]

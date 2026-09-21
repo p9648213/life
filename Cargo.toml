@@ -9,6 +9,7 @@ default-members = [".", "crates/htmlc"]
 resolver = "3"
 
 [dependencies]
+htmlc = { path = "crates/htmlc" }
 
 [build-dependencies]
 htmlc = { path = "crates/htmlc" }

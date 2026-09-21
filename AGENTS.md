@@ -1,10 +1,10 @@
 # Project Guidance
 
-This project is for building a serious custom Rust web backend from low-level pieces.
+This project is for building a serious custom Rust HTTP library from low-level pieces.
 
-The goal is to understand and own the full backend flow: TCP, HTTP parsing, response generation, routing, handler boundaries, state, persistence, cookies, sessions, concurrency, observability, testing, and performance. The backend should stay hackable and explicit, not become an opinionated framework like Axum or Actix.
+The goal is to understand and own the full backend flow: TCP, HTTP parsing, response generation, routing, handler boundaries, state, persistence, cookies, concurrency, observability, testing, and performance. The backend should stay hackable and explicit, not become an opinionated framework like Axum or Actix.
 
-The application domain is separate from the backend core. Do not assume a to-do app, notes app, or any fixed product unless the user chooses one for a specific exercise.
+The application domain is separate from the backend core. Sessions, authentication, and application error policy belong to applications using the library. Do not assume a to-do app, notes app, or any fixed product unless the user chooses one for a specific exercise.
 
 Important constraints for assistance:
 
@@ -49,18 +49,15 @@ Phase files:
 - [Phase 09C (Deferred): File-Storage Performance Optimization](docs/phases/09c-file-storage-performance-optimization.md)
 - [Phase 10: Static Files and CSS](docs/phases/10-static-files-css.md)
 - [Phase 11: Cookies](docs/phases/11-cookies.md)
-- [Phase 12: Sessions](docs/phases/12-sessions.md)
-- [Phase 13: Passwords and Authentication](docs/phases/13-passwords-authentication.md)
-- [Phase 14: Error Handling](docs/phases/14-error-handling.md)
-- [Phase 15A: Thread-Based Concurrency](docs/phases/15a-thread-based-concurrency.md)
-- [Phase 15B (Deferred): Async I/O](docs/phases/15b-async-io.md)
-- [Phase 16: Better HTTP Behavior](docs/phases/16-better-http-behavior.md)
-- [Phase 17: Testing](docs/phases/17-testing.md)
-- [Phase 18: Database Layer](docs/phases/18-database-layer.md)
-- [Phase 19: JSON API](docs/phases/19-json-api.md)
-- [Phase 20: Frontend Interactivity Adapter](docs/phases/20-frontend-interactivity.md)
-- [Phase 21: Configuration and Runtime Limits](docs/phases/21-configuration-runtime-limits.md)
-- [Phase 22: Observability and Diagnostics](docs/phases/22-observability-diagnostics.md)
-- [Phase 23: Benchmarking and Profiling](docs/phases/23-benchmarking-profiling.md)
-- [Phase 24: Backend Core API Boundary](docs/phases/24-backend-core-api-boundary.md)
-- [Phase 25: Security and Deployment Boundary](docs/phases/25-security-deployment-boundary.md)
+- [Phase 12A: Thread-Based Concurrency](docs/phases/12a-thread-based-concurrency.md)
+- [Phase 12B (Deferred): Async I/O](docs/phases/12b-async-io.md)
+- [Phase 13: Better HTTP Behavior](docs/phases/13-better-http-behavior.md)
+- [Phase 14: Testing](docs/phases/14-testing.md)
+- [Phase 15: Database Layer](docs/phases/15-database-layer.md)
+- [Phase 16: JSON API](docs/phases/16-json-api.md)
+- [Phase 17: Frontend Interactivity Adapter](docs/phases/17-frontend-interactivity.md)
+- [Phase 18: Configuration and Runtime Limits](docs/phases/18-configuration-runtime-limits.md)
+- [Phase 19: Observability and Diagnostics](docs/phases/19-observability-diagnostics.md)
+- [Phase 20: Benchmarking and Profiling](docs/phases/20-benchmarking-profiling.md)
+- [Phase 21: Backend Core API Boundary](docs/phases/21-backend-core-api-boundary.md)
+- [Phase 22: Security and Deployment Boundary](docs/phases/22-security-deployment-boundary.md)

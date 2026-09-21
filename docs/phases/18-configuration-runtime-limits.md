@@ -1,4 +1,4 @@
-# Phase 21: Configuration and Runtime Limits
+# Phase 18: Configuration and Runtime Limits
 
 Goal: make runtime behavior and resource limits explicit.
 
@@ -33,4 +33,4 @@ The server can change its bind address, storage paths, timeouts, and resource li
 
 You are done when runtime values are centralized, validated before startup, and observable without exposing secrets.
 
-After this, continue with [Phase 22: Observability and Diagnostics](22-observability-diagnostics.md).
+After this, continue with [Phase 19: Observability and Diagnostics](19-observability-diagnostics.md).

@@ -37,4 +37,4 @@ The server sends a `Set-Cookie` header. The browser returns name/value pairs in 
 
 Tests pass for the agreed subset. Verify in a browser that cookies are stored, returned, and expired; check path matching, HttpOnly, and SameSite behavior. Explain the distinction between server serialization and browser acceptance.
 
-After this, continue with [Phase 12: Sessions](12-sessions.md).
+After this, continue with [Phase 12A: Thread-Based Concurrency](12a-thread-based-concurrency.md).

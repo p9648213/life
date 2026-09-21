@@ -43,8 +43,8 @@ The deterministic reader tests pass. The two real-TCP integration tests could no
 
 - Run `cargo fmt`; the current `src/server.rs` edit has a minor spacing issue in the `enumerate()` loop. There is also an unrelated formatting suggestion in `src/main.rs`.
 - `read_one_request` and `Request::parse` each inspect `Content-Length`. They currently agree on case-insensitive lookup, which is enough here. If the rule becomes more complicated, extract a small shared head-inspection helper so the two layers cannot drift.
-- Duplicate `Content-Length` headers currently use the last observed value. Phase 16 should choose and enforce a deliberate duplicate-header policy.
-- The temporary 64 KiB limit is appropriate for this learning phase. Phase 16 should separate header, body, and total-request limits, add timeouts, and map errors precisely to HTTP responses.
+- Duplicate `Content-Length` headers currently use the last observed value. Phase 13 should choose and enforce a deliberate duplicate-header policy.
+- The temporary 64 KiB limit is appropriate for this learning phase. Phase 13 should separate header, body, and total-request limits, add timeouts, and map errors precisely to HTTP responses.
 - The reader deliberately discards data after the first request. Preserve that data instead of discarding it only when you add persistent connections or HTTP pipelining.
 - Form decoding does not belong here. Continue to Phase 06B with the raw bytes exposed by `request.body()`.
 

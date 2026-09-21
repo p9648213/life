@@ -41,9 +41,9 @@ I verified that:
 
 ## Things To Improve Later
 
-- `HttpError::RequestHeaderInvalid` is also used when constructing an invalid response header. Phase 14 can introduce error names that distinguish request parsing from response construction when callers need that precision.
+- `HttpError::RequestHeaderInvalid` is also used when constructing an invalid response header. Future library API refinement can introduce error names that distinguish request parsing from response construction when callers need that precision.
 - `add_header` and `set_header` currently duplicate their validation rules. A later cleanup can centralize those rules so the two methods cannot drift.
-- The current phase rejects CR and LF, which closes the response-splitting risk required here. Broader response-header grammar and control-character validation can wait for Phase 16.
+- The current phase rejects CR and LF, which closes the response-splitting risk required here. Broader response-header grammar and control-character validation can wait for Phase 13.
 - If a future application accepts redirect destinations from users, it should also enforce an application-level destination policy to prevent open redirects. That is separate from HTTP header safety.
 - The temporary handlers use fixed redirect destinations, so construction cannot fail in practice. For a future dynamic destination, decide whether to validate the redirect before mutating state so a redirect-construction failure cannot leave a successful mutation followed by an error response.
 

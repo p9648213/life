@@ -1,6 +1,6 @@
 # Custom Backend From Scratch in Rust
 
-This documentation is a learning and engineering path for building a custom Rust web backend from low-level pieces. It intentionally avoids full code solutions. Each phase tells you what to learn, where to look, what to try, and how to check your understanding.
+This documentation is a learning and engineering path for building a custom Rust HTTP library from low-level pieces. It intentionally avoids full code solutions. Each phase tells you what to learn, where to look, what to try, and how to check your understanding.
 
 The old roadmap used a small app as the center of the work. The new direction is different: build a backend core that can support whatever fullstack application you decide to build separately. Temporary sample routes are allowed only to exercise the backend.
 
@@ -13,24 +13,24 @@ Current status:
 
 Main target:
 
-- HTTP/1.1 server starting with `std::net`, with async I/O deferred to Phase 15B
+- HTTP/1.1 server starting with `std::net`, with async I/O deferred to Phase 12B
 - Manual request parsing
 - Manual response generation
 - Router and handler boundary
 - Application state boundary
 - HTML, form, and JSON adapters when needed
-- Cookies and sessions
+- Cookie parsing and serialization
 - File-backed storage and database-backed storage
 - Explicit error mapping
 - Request limits and protocol hardening
 - Configuration, diagnostics, and observability
 - Concurrency model you understand
-- Authentication using proven password hashing
 - Tests for the parts you build yourself
 - Benchmarking and profiling before performance rewrites
 
 Non-goals:
 
+- Sessions, authentication, and application error policy belong to applications using the library.
 - Do not clone every feature of Axum, Actix, Hyper, or a browser-facing reverse proxy.
 - Do not write homemade cryptography, password hashing, or TLS.
 - Do not optimize by guessing. First make behavior correct and measurable.
@@ -70,7 +70,9 @@ Useful official references:
 
 Phase 05B is an optional, repeatable continuation. It does not block Phase 06A; return to it only when a concrete template requires another compiler capability.
 
-Phase 15A establishes bounded thread-based concurrency. Phase 15B adds async I/O later and does not block Phase 16 or subsequent phases.
+After Phase 11, continue with Phase 12A.
+
+Phase 12A establishes bounded thread-based concurrency. Phase 12B adds async I/O later and does not block Phase 13 or subsequent phases.
 
 1. [Project Setup](phases/00-project-setup.md)
 2. [TCP Server](phases/01-tcp-server.md)
@@ -89,21 +91,18 @@ Phase 15A establishes bounded thread-based concurrency. Phase 15B adds async I/O
     - [File-Storage Performance Optimization (Deferred)](phases/09c-file-storage-performance-optimization.md)
 13. [Static Files and CSS](phases/10-static-files-css.md)
 14. [Cookies](phases/11-cookies.md)
-15. [Sessions](phases/12-sessions.md)
-16. [Passwords and Authentication](phases/13-passwords-authentication.md)
-17. [Error Handling](phases/14-error-handling.md)
-18. [Phase 15A: Thread-Based Concurrency](phases/15a-thread-based-concurrency.md)
-    - [Phase 15B: Async I/O (Deferred)](phases/15b-async-io.md)
-19. [Better HTTP Behavior](phases/16-better-http-behavior.md)
-20. [Testing](phases/17-testing.md)
-21. [Database Layer](phases/18-database-layer.md)
-22. [JSON API](phases/19-json-api.md)
-23. [Frontend Interactivity Adapter](phases/20-frontend-interactivity.md)
-24. [Configuration and Runtime Limits](phases/21-configuration-runtime-limits.md)
-25. [Observability and Diagnostics](phases/22-observability-diagnostics.md)
-26. [Benchmarking and Profiling](phases/23-benchmarking-profiling.md)
-27. [Backend Core API Boundary](phases/24-backend-core-api-boundary.md)
-28. [Security and Deployment Boundary](phases/25-security-deployment-boundary.md)
+15. [Phase 12A: Thread-Based Concurrency](phases/12a-thread-based-concurrency.md)
+    - [Phase 12B: Async I/O (Deferred)](phases/12b-async-io.md)
+16. [Better HTTP Behavior](phases/13-better-http-behavior.md)
+17. [Testing](phases/14-testing.md)
+18. [Database Layer](phases/15-database-layer.md)
+19. [JSON API](phases/16-json-api.md)
+20. [Frontend Interactivity Adapter](phases/17-frontend-interactivity.md)
+21. [Configuration and Runtime Limits](phases/18-configuration-runtime-limits.md)
+22. [Observability and Diagnostics](phases/19-observability-diagnostics.md)
+23. [Benchmarking and Profiling](phases/20-benchmarking-profiling.md)
+24. [Backend Core API Boundary](phases/21-backend-core-api-boundary.md)
+25. [Security and Deployment Boundary](phases/22-security-deployment-boundary.md)
 
 ## Feedback Index
 

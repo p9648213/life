@@ -1,6 +1,6 @@
 # Backend Engine Plan
 
-This project is no longer centered on a toy app. Treat it as a custom backend engine that you can understand, modify, and optimize. The application you eventually build should sit on top of this backend core instead of being baked into the core design.
+This project is no longer centered on a toy app. Treat it as a custom HTTP library that you can understand, modify, and optimize. The application you eventually build should sit on top of this backend core instead of being baked into the core design.
 
 ## Direction
 
@@ -42,7 +42,7 @@ Keep these boundaries visible:
 - `handler`: app-specific behavior that returns a response.
 - `state`: app context, shared state, configuration, storage handles.
 - `storage`: persistence implementation behind a small interface.
-- `security`: cookies, sessions, authentication, and authorization.
+- `cookies`: HTTP cookie parsing and serialization.
 - `diagnostics`: logs, request IDs, metrics, and debug output.
 
 Do not create every module immediately. Split when the next phase needs the boundary.
@@ -61,15 +61,15 @@ Phase 07 should introduce an application state boundary, not a hard-coded to-do 
 
 ### Milestone B: Correctness Before Speed
 
-Add redirects, persistence, static files, cookies, sessions, authentication, and error mapping with clear tests. Keep the behavior explicit even if it is simple.
+Add redirects, persistence, static files, cookies, and HTTP error mapping with clear tests. Keep the behavior explicit even if it is simple.
 
-Phase 09A establishes the file-storage format and direct collection operations. Phase 09B adds explicit storage size and work limits. Phase 09C is a deferred, optional optimization track; enter it only after Phase 23 or another reproducible benchmark identifies a specific storage bottleneck.
+Phase 09A establishes the file-storage format and direct collection operations. Phase 09B adds explicit storage size and work limits. Phase 09C is a deferred, optional optimization track; enter it only after Phase 20 or another reproducible benchmark identifies a specific storage bottleneck.
 
 By the end of this milestone, bad client input should become a reasonable HTTP response instead of a panic or silent success.
 
 ### Milestone C: Serious Request Handling
 
-Phase 15A introduces bounded thread-based concurrency, deadlines, and safe shared-state access. Keep connection I/O and request processing separate from worker scheduling. Phase 15B is a deferred async I/O track that preserves these guarantees; it does not block Phase 16 or later phases.
+Phase 12A introduces bounded thread-based concurrency, deadlines, and safe shared-state access. Keep connection I/O and request processing separate from worker scheduling. Phase 12B is a deferred async I/O track that preserves these guarantees; it does not block Phase 13 or later phases.
 
 Harden the provisional Phase 06A read loop with request size limits, body limits, timeout behavior, `Host` handling, duplicate header policy, and connection-close rules.
 
@@ -79,7 +79,7 @@ This is where the temporary total-request capacity and one-request connection be
 
 After the core can route, parse bodies, hold state, persist data, and return HTML/JSON, define the boundary for real application code.
 
-The backend core should not know your product domain. The app layer should provide handlers, state, templates or JSON serializers, and storage choices.
+The backend core should not know your product domain. The app layer should provide handlers, state, templates or JSON serializers, storage choices, sessions, authentication, and application error policy.
 
 ### Milestone E: Measurement and Optimization
 
@@ -116,8 +116,6 @@ Default to the standard library while you are learning the mechanism.
 
 Dependencies are acceptable when the learning target is not the unsafe primitive itself:
 
-- Password hashing: use a proven crate such as `argon2`.
-- Random session IDs: use OS-backed randomness.
 - TLS: use a reverse proxy or a proven TLS stack.
 - Database access: use a database crate when the goal becomes SQL, transactions, and persistence behavior.
 - JSON: manual strings are fine for tiny experiments; use `serde_json` once shapes grow.

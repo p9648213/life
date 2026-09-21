@@ -1,4 +1,4 @@
-# Phase 25: Security and Deployment Boundary
+# Phase 22: Security and Deployment Boundary
 
 Goal: define what is safe, what remains unsafe, and how the application may be exposed.
 

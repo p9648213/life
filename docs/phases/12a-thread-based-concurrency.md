@@ -1,4 +1,4 @@
-# Phase 15A: Thread-Based Concurrency
+# Phase 12A: Thread-Based Concurrency
 
 Goal: handle multiple clients with bounded blocking workers while preserving shared-state correctness.
 
@@ -40,4 +40,4 @@ More than one client can make progress concurrently, and shared application stat
 
 You are done when concurrency is bounded, shared mutations remain correct under stress, and lock ownership and duration can be explained precisely.
 
-After this, continue with [Phase 16: Better HTTP Behavior](16-better-http-behavior.md). [Phase 15B: Async I/O](15b-async-io.md) is deferred and does not block later phases.
+After this, continue with [Phase 13: Better HTTP Behavior](13-better-http-behavior.md). [Phase 12B: Async I/O](12b-async-io.md) is deferred and does not block later phases.

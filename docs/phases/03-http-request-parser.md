@@ -103,7 +103,7 @@ At first, it is acceptable to read into a fixed-size buffer and parse what one `
 - One `read` call is not guaranteed to contain the full request.
 - Large or slow requests may arrive in pieces.
 
-Phase 06A will remove this immediate single-read limitation just enough to accumulate one complete fixed-length request before parsing. Phase 16 will later harden that reader with deliberate limits, timeouts, and connection behavior.
+Phase 06A will remove this immediate single-read limitation just enough to accumulate one complete fixed-length request before parsing. Phase 13 will later harden that reader with deliberate limits, timeouts, and connection behavior.
 
 For Phase 03, document the limitation and keep the parser focused on validating a complete byte slice.
 

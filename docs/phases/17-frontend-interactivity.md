@@ -1,4 +1,4 @@
-# Phase 20: Frontend Interactivity Adapter
+# Phase 17: Frontend Interactivity Adapter
 
 Goal: progressively enhance one browser workflow without replacing the server-rendered application.
 
@@ -32,4 +32,4 @@ One form can submit through `fetch` and display success or validation feedback. 
 
 You are done when one workflow is enhanced without making JavaScript mandatory or moving application authority into the browser.
 
-After this, continue with [Phase 21: Configuration and Runtime Limits](21-configuration-runtime-limits.md).
+After this, continue with [Phase 18: Configuration and Runtime Limits](18-configuration-runtime-limits.md).
